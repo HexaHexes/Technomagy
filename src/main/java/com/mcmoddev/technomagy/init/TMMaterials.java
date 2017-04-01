@@ -3,6 +3,9 @@ package com.mcmoddev.technomagy.init;
 import com.mcmoddev.lib.material.MetalMaterial;
 import com.mcmoddev.lib.material.MetalMaterial.MaterialType;
 
+import net.minecraft.block.Block;
+import net.minecraft.item.Item;
+
 public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 	public static MetalMaterial earth;
 	public static MetalMaterial air;
@@ -11,6 +14,8 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 	public static MetalMaterial light;
 	public static MetalMaterial dark;
 	public static MetalMaterial spirit;
+	public static MetalMaterial alchBooks;
+	public static MetalMaterial alchTable;
 	
 	public static boolean initDone = false;
 	
@@ -29,6 +34,8 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 		earth  = createRareMaterial("earth", MaterialType.GEM, 8, 8, 12.5, 0xff42d639);
 		fire   = createRareMaterial("fire",  MaterialType.GEM, 8, 8, 12.5, 0xfff80000);
         spirit = createOrelessRareMaterial("spirit", MaterialType.GEM, 8, 8, 10, 0xff888888);
+		alchBooks = createOrelessMaterial("bookshelf", MaterialType.WOOD, 1, 1, 0, 0xffb4905a);
+		alchTable = createOrelessMaterial("alchemy_table", MaterialType.WOOD, 1, 1, 0, 0xff9f844d);
 		
 		initDone = true;
 	}

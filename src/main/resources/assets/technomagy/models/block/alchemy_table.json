@@ -1,0 +1,87 @@
+{
+    "ambientocclusion": false,
+    "textures": {
+      "decor": "minecraft:block/planks_big_oak",
+      "surface": "minecraft:block/planks_oak"
+    },
+    "elements": [
+        {
+            "name": "Top",
+            "from": [ 0.0, 15.0, 0.0 ], 
+            "to": [ 16.0, 16.0, 16.0 ], 
+            "faces": {
+                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
+                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
+                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
+                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
+                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 16.0 ] },
+                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 16.0 ] }
+            }
+        },
+        {
+            "name": "Top Underside",
+            "from": [ 2.0, 14.0, 2.0 ], 
+            "to": [ 14.0, 15.0, 15.0 ], 
+            "faces": {
+                "north": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 1.0 ] },
+                "east": { "texture": "#decor", "uv": [ 0.0, 0.0, 13.0, 1.0 ] },
+                "south": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 1.0 ] },
+                "west": { "texture": "#decor", "uv": [ 0.0, 0.0, 13.0, 1.0 ] },
+                "up": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 13.0 ] },
+                "down": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 13.0 ] }
+            }
+        },
+        {
+            "name": "Left Back Leg",
+            "from": [ 2.0, 0.0, 2.0 ], 
+            "to": [ 4.0, 15.0, 4.0 ], 
+            "faces": {
+                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
+                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+            }
+        },
+        {
+            "name": "Right Back Leg",
+            "from": [ 12.0, 0.0, 2.0 ], 
+            "to": [ 14.0, 15.0, 4.0 ], 
+            "faces": {
+                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
+                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+            }
+        },
+        {
+            "name": "Right Front Leg",
+            "from": [ 12.0, 0.0, 12.0 ], 
+            "to": [ 14.0, 15.0, 14.0 ], 
+            "faces": {
+                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
+                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+            }
+        },
+        {
+            "name": "Left Front Leg",
+            "from": [ 2.0, 0.0, 12.0 ], 
+            "to": [ 4.0, 15.0, 14.0 ], 
+            "faces": {
+                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
+                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
+                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+            }
+        }
+    ]
+}
