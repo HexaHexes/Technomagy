@@ -1,1 +1,8 @@
-{ "variants": { "normal": { "model": "technomagy:earth_block" } } }
+{
+    "variants": {
+	"normal": {
+	    "model": "technomagy:earth_block"
+	}
+    }
+}
+

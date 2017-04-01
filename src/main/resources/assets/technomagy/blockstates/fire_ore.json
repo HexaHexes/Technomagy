@@ -1,1 +1,8 @@
-{ "variants": { "normal": { "model": "technomagy:fire_ore" } } }
+{
+    "variants": {
+	"normal": {
+	    "model": "technomagy:fire_ore"
+	}
+    }
+}
+

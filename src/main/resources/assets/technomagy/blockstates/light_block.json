@@ -1,1 +1,8 @@
-{ "variants": { "normal": { "model": "technomagy:light_block" } } }
+{
+    "variants": {
+	"normal": {
+	    "model": "technomagy:light_block"
+	}
+    }
+}
+

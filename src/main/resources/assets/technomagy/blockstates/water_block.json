@@ -1,1 +1,8 @@
-{ "variants": { "normal": { "model": "technomagy:water_block" } } }
+{
+    "variants": {
+	"normal": {
+	    "model": "technomagy:water_block"
+	}
+    }
+}
+
