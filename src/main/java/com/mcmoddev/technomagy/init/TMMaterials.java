@@ -10,7 +10,7 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 	public static MetalMaterial water;
 	public static MetalMaterial light;
 	public static MetalMaterial dark;
-//	public static MetalMaterial spirit;
+	public static MetalMaterial spirit;
 	
 	public static boolean initDone = false;
 	
@@ -28,7 +28,7 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 		air    = createRareMaterial("air",   MaterialType.GEM, 8, 8, 12.5, 0xffe8eae9);
 		earth  = createRareMaterial("earth", MaterialType.GEM, 8, 8, 12.5, 0xff42d639);
 		fire   = createRareMaterial("fire",  MaterialType.GEM, 8, 8, 12.5, 0xfff80000);
-//      spirit = createRareOrelessMaterial("spirit", MaterialType.GEM, 8, 8, 10, 0xff888888);
+        spirit = createOrelessRareMaterial("spirit", MaterialType.GEM, 8, 8, 10, 0xff888888);
 		
 		initDone = true;
 	}

@@ -12,5 +12,13 @@ public class TMBlocks extends com.mcmoddev.lib.init.Blocks {
 		createOre(TMMaterials.water);
 		createOre(TMMaterials.light);
 		createOre(TMMaterials.dark);
+		
+		createBlock(TMMaterials.air);
+		createBlock(TMMaterials.earth);
+		createBlock(TMMaterials.fire);
+		createBlock(TMMaterials.water);
+		createBlock(TMMaterials.light);
+		createBlock(TMMaterials.dark);
+		createBlock(TMMaterials.spirit);
 	}
 }
