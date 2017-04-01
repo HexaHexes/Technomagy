@@ -32,7 +32,7 @@ public class Technomagy {
 	public static Technomagy instance;
 
 	/** ID of this Mod */
-	public static final String MODID = "mmdbucketstechnomagy";
+	public static final String MODID = "technomagy";
 	/** Display name of this Mod */
 	public static final String NAME = "Technomagy";
 	/** Version Number, in SemVer format */
