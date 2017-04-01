@@ -1,0 +1,16 @@
+[
+{
+  "modid": "technomagy",
+  "name": "Technomagy",
+  "description": "A mod that treats magic as a science",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "http://github.com/dshadowwolf/technomagy",
+  "updateUrl": "",
+  "authorlist": [ "dshadowwolf", "cazsius", "jriwanek" ],
+  "credits": "DShadowWolf for the idea, skeleton and original code, Cazsius for the lore and additional code, Jriwanek for the support and beating us when we argued",
+  "logoFile": "",
+  "screenshots": [],
+  "depedencies": "basemetals"
+}
+]
