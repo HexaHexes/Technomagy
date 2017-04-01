@@ -2,6 +2,7 @@ package com.mcmoddev.technomagy.proxy;
 
 import com.mcmoddev.technomagy.init.ItemGroups;
 import com.mcmoddev.technomagy.init.TMBlocks;
+import com.mcmoddev.technomagy.init.TMItems;
 import com.mcmoddev.technomagy.init.TMMaterials;
 
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -14,7 +15,7 @@ public class CommonProxy {
 		TMMaterials.init();
 		ItemGroups.init();
 		TMBlocks.init();
-		
+		TMItems.init();
 	}
 
 	public void init(FMLInitializationEvent event) {
