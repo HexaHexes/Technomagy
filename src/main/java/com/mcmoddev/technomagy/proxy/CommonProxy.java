@@ -1,5 +1,6 @@
 package com.mcmoddev.technomagy.proxy;
 
+import com.mcmoddev.technomagy.init.ItemGroups;
 import com.mcmoddev.technomagy.init.TMBlocks;
 import com.mcmoddev.technomagy.init.TMMaterials;
 
@@ -11,6 +12,7 @@ public class CommonProxy {
 
 	public void preInit(FMLPreInitializationEvent event) {
 		TMMaterials.init();
+		ItemGroups.init();
 		TMBlocks.init();
 		
 	}

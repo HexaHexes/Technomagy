@@ -5,6 +5,7 @@ public class TMBlocks extends com.mcmoddev.lib.init.Blocks {
 	
 	public static void init() {
 		TMMaterials.init();
+		ItemGroups.init();
 		
 		createOre(TMMaterials.air);
 		createOre(TMMaterials.earth);
