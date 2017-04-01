@@ -100,27 +100,8 @@ repositories {
 }
 
 dependencies {
-/* we might want this in the future
-    deobfCompile ("slimeknights:TConstruct:${mc_version}-${tconstruct_version}") {
-        exclude group: 'mezz.jei'
-    }
-    deobfCompile ("slimeknights.mantle:Mantle:${mc_version}-${mantle_version}") {
-        exclude group: 'mezz.jei'
-    }
-*/
-
-    deobfCompile "mezz.jei:jei_${mc_version}:${jei_version}"
-
     deobfCompile "mmd:orespawn:${orespawn_version}-${mc_version}"
     deobfCompile "com.mcmoddev:BaseMetals:${mc_version}-${bme_version}"
-    
-    deobfCompile ("MineTweaker3:MineTweaker3-API:3.+") {
-        exclude group: 'mezz.jei'
-    }
-    
-    deobfCompile ("mcp.mobius.waila:Hwyla:+") {
-        exclude group: 'mezz.jei'
-    }
 }
 
 processResources {
@@ -139,8 +120,6 @@ processResources {
 
 jar {
     manifest {
-        attributes "FMLCorePluginContainsFMLMod": "true"
-        attributes "FMLCorePlugin": corePlugin
     }
 }
 
@@ -203,7 +182,7 @@ publishing {
 }
 
 curseforge {
-    apiKey = secret.curseforgeAPIKey
+/*    apiKey = secret.curseforgeAPIKey
     project {
         id = "240967"
         changelog = file("CHANGELOG.txt")
@@ -233,7 +212,7 @@ curseforge {
         addArtifact(javadocJar) {
             displayName = "$projName $displayVersion Javadoc"
         }
-    }
+    } */
 }
 
 String getModFile() {
