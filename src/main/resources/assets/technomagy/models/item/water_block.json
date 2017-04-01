@@ -1,1 +1,2 @@
-{ "parent": "technomagy/block/water_block"; }
+{ "parent": "technomagy:block/water_block" }
+

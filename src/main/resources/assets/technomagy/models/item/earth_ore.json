@@ -1,1 +1,2 @@
-{ "parent": "technomagy/block/earth_ore"; }
+{ "parent": "technomagy:block/earth_ore" }
+
