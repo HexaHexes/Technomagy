@@ -1,0 +1,7 @@
+{
+    "parent": "block/cube_all",
+    "textures": {
+        "all": "technomagy:blocks/earth_ore"
+        "all": "technomagy:blocks/earth_ore"
+    }
+}
