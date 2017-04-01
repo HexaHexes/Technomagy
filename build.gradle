@@ -36,7 +36,7 @@ if (System.getenv().BUILD_NUMBER) {
     version += "." + System.getenv().BUILD_NUMBER
 }
 group = "com.mcmoddev"
-archivesBaseName = "BaseMetals"
+archivesBaseName = "Technomagy"
 sourceCompatibility = targetCompatibility = "1.8"
 
 class Secrets {
