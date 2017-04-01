@@ -89,6 +89,14 @@ repositories {
     	name "tehnut"
     	url "http://tehnut.info/maven"
     }
+    maven {
+    	name "DVS1 Maven FS"
+	url "http://dvs1.progwml6.com/files/maven"
+    }
+    maven { // CoFH stuff is here
+    	name "Covers Maven"
+    	url "http://maven.covers1624.net"
+    }
 }
 
 dependencies {
