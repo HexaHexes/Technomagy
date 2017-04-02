@@ -1,86 +1,81 @@
 {
-    "ambientocclusion": false,
+    "parent": "block/block",
     "textures": {
-      "decor": "minecraft:block/planks_big_oak",
-      "surface": "minecraft:block/planks_oak"
+	"surface": "#surface",
+	"decor": "#decor"
     },
     "elements": [
         {
-            "name": "Top",
-            "from": [ 0.0, 15.0, 0.0 ], 
-            "to": [ 16.0, 16.0, 16.0 ], 
+            "__comment": "Table Top",
+            "from": [  0, 15,  0 ], 
+            "to":   [ 16, 16, 16 ], 
             "faces": {
-                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
-                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
-                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
-                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 1.0 ] },
-                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 16.0 ] },
-                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 16.0, 16.0 ] }
+                "north": { "texture": "#surface", "cullface": "north" },
+                "east":  { "texture": "#surface", "cullface": "east" },
+                "south": { "texture": "#surface", "cullface": "south" },
+                "west":  { "texture": "#surface", "cullface": "west" },
+                "up":    { "texture": "#surface", "uv": [ 0, 0, 16, 16 ], "cullface": "up" },
+                "down":  { "texture": "#surface", "cullface": "down" }
             }
         },
         {
-            "name": "Top Underside",
-            "from": [ 2.0, 14.0, 2.0 ], 
-            "to": [ 14.0, 15.0, 15.0 ], 
+            "__comment": "Top Underplate",
+            "from": [  2, 14,  2 ], 
+            "to":   [ 14, 15, 14 ], 
             "faces": {
-                "north": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 1.0 ] },
-                "east": { "texture": "#decor", "uv": [ 0.0, 0.0, 13.0, 1.0 ] },
-                "south": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 1.0 ] },
-                "west": { "texture": "#decor", "uv": [ 0.0, 0.0, 13.0, 1.0 ] },
-                "up": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 13.0 ] },
-                "down": { "texture": "#decor", "uv": [ 0.0, 0.0, 12.0, 13.0 ] }
+                "north": { "texture": "#decor", "cullface": "north" },
+                "east":  { "texture": "#decor", "cullface": "east" },
+                "south": { "texture": "#decor", "cullface": "south" },
+                "west":  { "texture": "#decor", "cullface": "west" },
+                "down":  { "texture": "#decor", "uv": [ 0, 0, 12, 13 ], "cullface": "down" }
             }
         },
         {
-            "name": "Left Back Leg",
-            "from": [ 2.0, 0.0, 2.0 ], 
-            "to": [ 4.0, 15.0, 4.0 ], 
+            "__comment": "Left Back Leg",
+            "from": [ 2,  0, 2 ], 
+            "to":   [ 4, 14, 4 ], 
             "faces": {
-                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
-                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+                "north": { "texture": "#surface", "cullface": "north" },
+                "east":  { "texture": "#surface", "cullface": "east" },
+                "south": { "texture": "#surface", "cullface": "south" },
+                "west":  { "texture": "#surface", "cullface": "west" },
+                "down":  { "texture": "#surface", "cullface": "down" }
             }
         },
         {
-            "name": "Right Back Leg",
-            "from": [ 12.0, 0.0, 2.0 ], 
-            "to": [ 14.0, 15.0, 4.0 ], 
+            "__comment": "Right Back Leg",
+            "from": [ 12,  0, 2 ], 
+            "to":   [ 14, 14, 4 ], 
             "faces": {
-                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
-                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+                "north": { "texture": "#surface", "cullface": "north" },
+                "east":  { "texture": "#surface", "cullface": "east" },
+                "south": { "texture": "#surface", "cullface": "south" },
+                "west":  { "texture": "#surface", "cullface": "west" },
+                "down":  { "texture": "#surface", "cullface": "down" }
             }
         },
         {
-            "name": "Right Front Leg",
-            "from": [ 12.0, 0.0, 12.0 ], 
-            "to": [ 14.0, 15.0, 14.0 ], 
+            "__comment": "Right Front Leg",
+            "from": [ 12,  0, 12 ], 
+            "to":   [ 14, 14, 14 ], 
             "faces": {
-                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
-                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+                "north": { "texture": "#surface", "cullface": "north" },
+                "east":  { "texture": "#surface", "cullface": "east" },
+                "south": { "texture": "#surface", "cullface": "south" },
+                "west":  { "texture": "#surface", "cullface": "west" },
+                "down":  { "texture": "#surface", "cullface": "down" }
             }
         },
         {
-            "name": "Left Front Leg",
-            "from": [ 2.0, 0.0, 12.0 ], 
-            "to": [ 4.0, 15.0, 14.0 ], 
+            "__comment": "Left Front Leg",
+            "from": [ 2,  0, 12 ], 
+            "to":   [ 4, 14, 14 ], 
             "faces": {
-                "north": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "east": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "south": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "west": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 7.0 ] },
-                "up": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] },
-                "down": { "texture": "#surface", "uv": [ 0.0, 0.0, 2.0, 2.0 ] }
+                "north": { "texture": "#surface", "cullface": "north" },
+                "east":  { "texture": "#surface", "cullface": "east" },
+                "south": { "texture": "#surface", "cullface": "south" },
+                "west":  { "texture": "#surface", "cullface": "west" },
+                "down":  { "texture": "#surface", "cullface": "down" }
             }
         }
     ]

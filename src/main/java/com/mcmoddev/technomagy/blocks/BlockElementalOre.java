@@ -3,8 +3,8 @@ package com.mcmoddev.technomagy.blocks;
 import java.util.Random;
 
 import com.mcmoddev.basemetals.init.Materials;
-import com.mcmoddev.lib.material.IMetalObject;
-import com.mcmoddev.lib.material.MetalMaterial;
+import com.mcmoddev.lib.material.IMMDObject;
+import com.mcmoddev.lib.material.MMDMaterial;
 import com.mcmoddev.lib.registry.IOreDictionaryEntry;
 import com.mcmoddev.lib.util.Oredicts;
 
@@ -16,9 +16,9 @@ import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 
-public class BlockElementalOre extends BlockOre implements IOreDictionaryEntry, IMetalObject {
+public class BlockElementalOre extends BlockOre implements IOreDictionaryEntry, IMMDObject {
 
-	private final MetalMaterial material;
+	private final MMDMaterial material;
 	private final String oreDict;
 
 	/**
@@ -26,7 +26,7 @@ public class BlockElementalOre extends BlockOre implements IOreDictionaryEntry, 
 	 * @param material
 	 *            The material the ore is made from
 	 */
-	public BlockElementalOre(MetalMaterial material) {
+	public BlockElementalOre(MMDMaterial material) {
 		super();
 		// this.setSoundType(SoundType.STONE);
 		this.material = material;
@@ -45,13 +45,13 @@ public class BlockElementalOre extends BlockOre implements IOreDictionaryEntry, 
 	}
 
 	@Override
-	public MetalMaterial getMaterial() {
+	public MMDMaterial getMaterial() {
 		return this.material;
 	}
 
 	@Override
 	@Deprecated
-	public MetalMaterial getMetalMaterial() {
+	public MMDMaterial getMetalMaterial() {
 		return this.material;
 	}
 
