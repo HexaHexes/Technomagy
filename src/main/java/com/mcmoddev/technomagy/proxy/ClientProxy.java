@@ -2,17 +2,16 @@ package com.mcmoddev.technomagy.proxy;
 
 import com.mcmoddev.technomagy.Technomagy;
 import com.mcmoddev.technomagy.init.TMItems;
+import com.mcmoddev.technomagy.init.TMMaterials;
 import com.mcmoddev.technomagy.init.TMBlocks;
 
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockDoor;
-import net.minecraft.block.BlockSlab;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemModelMesher;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 
 public class ClientProxy extends CommonProxy {
@@ -28,6 +27,8 @@ public class ClientProxy extends CommonProxy {
 		for (final String name : TMBlocks.getBlockRegistry().keySet()) {
 			registerRenderOuter(TMBlocks.getBlockByName(name));
 		}
+		
+		MinecraftForge.EVENT_BUS.register(TMMaterials.alchChair);
 	}
 
 	public void registerRenderOuter(Item item) {
