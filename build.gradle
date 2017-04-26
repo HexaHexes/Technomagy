@@ -74,6 +74,10 @@ minecraft {
 
 repositories {
     maven {
+        name "SpongePowered"
+        url 'https://repo.spongepowered.org/maven/'
+    }
+    maven {
         name "MMD"
         url "https://maven.mcmoddev.com/"
     }
