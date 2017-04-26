@@ -1,0 +1,8 @@
+{
+    "parent": "block/block_orientable",
+    "textures": {
+        "top": "technomagy:blocks/furnace_top",
+        "side": "technomagy:blocks/furnace_side",
+        "front": "technomagy:blocks/furnace_front_off"
+    }
+}

@@ -11,6 +11,7 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
 	public static MMDMaterial light;
 	public static MMDMaterial dark;
 	public static MMDMaterial spirit;
+	public static MMDMaterial alchFurnace;
 	public static MMDMaterial alchBooks;
 	public static MMDMaterial alchTable;
 //	public static MMDMaterial alchChair;
@@ -34,6 +35,7 @@ public class TMMaterials extends com.mcmoddev.lib.init.Materials {
         spirit = createOrelessRareMaterial("spirit", MaterialType.CRYSTAL, 8, 8, 10, 0xff888888);
 		alchBooks = createOrelessMaterial("bookshelf", MaterialType.WOOD, 1, 1, 0, 0xffb4905a);
 		alchTable = createOrelessMaterial("alchemy_table", MaterialType.WOOD, 1, 1, 0, 0xff9f844d);
+		alchFurnace = createOrelessMaterial("alchemic_furnace", MaterialType.METAL, 8, 8, 0, 0xfff80000);
 		/*
 		 * Remove the chair - it isn't functional, at this time
 		 *

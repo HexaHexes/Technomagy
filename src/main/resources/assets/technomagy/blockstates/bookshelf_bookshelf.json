@@ -1,8 +1,10 @@
 {
     "variants": {
-	"normal": {
-	    "model": "technomagy:bookshelf_bookshelf"
-	}
+		"normal": { "model": "technomagy:bookshelf_bookshelf" },
+        "facing=north": { "model": "technomagy:bookshelf_bookshelf" },
+        "facing=south": { "model": "technomagy:bookshelf_bookshelf", "y": 180 },
+        "facing=west":  { "model": "technomagy:bookshelf_bookshelf", "y": 270 },
+        "facing=east":  { "model": "technomagy:bookshelf_bookshelf", "y": 90 }
     }
 }
 
