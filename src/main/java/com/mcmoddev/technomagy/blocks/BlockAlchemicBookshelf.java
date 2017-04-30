@@ -1,6 +1,5 @@
 package com.mcmoddev.technomagy.blocks;
 
-
 import com.mcmoddev.lib.block.BlockMMDBookshelf;
 import com.mcmoddev.lib.material.MMDMaterial;
 import com.mcmoddev.technomagy.init.TMMaterials;
@@ -70,13 +69,13 @@ public class BlockAlchemicBookshelf extends BlockMMDBookshelf {
 
         if (active)
         {
-            worldIn.setBlockState(pos, TMMaterials.alchBooks.bookshelf.getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
-            worldIn.setBlockState(pos, TMMaterials.alchBooks.bookshelf.getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
+            worldIn.setBlockState(pos, TMMaterials.alchBooks.getBlock("bookshelf").getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
+            worldIn.setBlockState(pos, TMMaterials.alchBooks.getBlock("bookshelf").getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
         }
         else
         {
-            worldIn.setBlockState(pos, TMMaterials.alchBooks.bookshelf.getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
-            worldIn.setBlockState(pos, TMMaterials.alchBooks.bookshelf.getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
+            worldIn.setBlockState(pos, TMMaterials.alchBooks.getBlock("bookshelf").getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
+            worldIn.setBlockState(pos, TMMaterials.alchBooks.getBlock("bookshelf").getDefaultState().withProperty(FACING, iblockstate.getValue(FACING)), 3);
         }
     }
 

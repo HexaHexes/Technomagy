@@ -8,13 +8,13 @@ public class TMItems extends com.mcmoddev.lib.init.Items {
 			return;
 		}
 
-		createCrystal(TMMaterials.air);
-		createCrystal(TMMaterials.earth);
-		createCrystal(TMMaterials.fire);
-		createCrystal(TMMaterials.water);
-		createCrystal(TMMaterials.light);
-		createCrystal(TMMaterials.dark);
-		createCrystal(TMMaterials.spirit);
+		createCrystal(TMMaterials.air, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.earth, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.fire, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.water, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.light, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.dark, ItemGroups.itemsTab);
+		createCrystal(TMMaterials.spirit, ItemGroups.itemsTab);
 
 		initDone = true;
 	}

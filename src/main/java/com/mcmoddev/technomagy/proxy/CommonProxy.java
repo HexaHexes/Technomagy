@@ -16,6 +16,7 @@ public class CommonProxy {
 		ItemGroups.init();
 		TMBlocks.init();
 		TMItems.init();
+		ItemGroups.setupIcons();
 	}
 
 	public void init(FMLInitializationEvent event) {
