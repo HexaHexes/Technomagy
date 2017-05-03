@@ -24,13 +24,7 @@ public class BlockAlchemyTable extends Block implements IMMDObject, IOreDictiona
 	}
 
 	@Override
-	public MMDMaterial getMaterial() {
-		return this.material;
-	}
-
-	@Override
-	@Deprecated
-	public MMDMaterial getMetalMaterial() {
+	public MMDMaterial getMMDMaterial() {
 		return this.material;
 	}
 	
