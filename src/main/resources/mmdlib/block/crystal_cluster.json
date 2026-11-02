@@ -1,0 +1,13 @@
+{
+  "factory": "technomagy:crystal_cluster",
+  "material_defaults": false,
+  "template": {
+    "properties": {
+      "hardness": 1.5,
+      "blast_resistance": 1.5,
+      "occlusion": false,
+      "sound": "amethyst_cluster"
+    },
+    "tags": ["minecraft:mineable/pickaxe"]
+  }
+}

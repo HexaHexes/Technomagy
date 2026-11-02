@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "technomagy:water_stone_block"
+    }
+  },
+  "result": {
+    "id": "technomagy:water_stone_slab",
+    "count": 6
+  }
+}

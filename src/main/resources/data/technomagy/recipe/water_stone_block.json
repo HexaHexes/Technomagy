@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "scs",
+    "csc",
+    "scs"
+  ],
+  "key": {
+    "s": {
+      "tag": "c:cobblestones"
+    },
+    "c": {
+      "item": "technomagy:water_crystal"
+    }
+  },
+  "result": {
+    "id": "technomagy:water_stone_block",
+    "count": 5
+  }
+}

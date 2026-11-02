@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "technomagy:fire_stone_slab",
+    "technomagy:earth_stone_slab",
+    "technomagy:air_stone_slab",
+    "technomagy:water_stone_slab",
+    "technomagy:light_stone_slab",
+    "technomagy:dark_stone_slab"
+  ]
+}

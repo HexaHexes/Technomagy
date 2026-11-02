@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/slab_top",
+  "textures": {
+    "bottom": "technomagy:block/fire_stone",
+    "top": "technomagy:block/fire_stone",
+    "side": "technomagy:block/fire_stone"
+  }
+}

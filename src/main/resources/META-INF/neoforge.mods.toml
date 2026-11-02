@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+[[mods]]
+modId="technomagy"
+version="${mod_version}"
+displayName="Technomagy"
+authors="DShadowWolf, JessLovely, thePalindrome, gigaherz"
+description='''
+Any sufficiently advanced technology is indistinguishable from magic - Arthur C. Clarke
+'''
+
+[[dependencies.technomagy]]
+   modId="neoforge"
+   type="required"
+   versionRange="[21.1.247,21.2)"
+   ordering="NONE"
+   side="BOTH"
+[[dependencies.technomagy]]
+   modId="minecraft"
+   type="required"
+   versionRange="[1.21.1,1.22)"
+   ordering="NONE"
+   side="BOTH"
+[[dependencies.technomagy]]
+   modId="patchouli"
+   type="required"
+   versionRange="[1.21.1-93,)"
+   ordering="NONE"
+   side="BOTH"
+[[dependencies.technomagy]]
+   modId="mmdlib"
+   type="required"
+   versionRange="[2.0.0-alpha,)"
+   ordering="AFTER"
+   side="BOTH"

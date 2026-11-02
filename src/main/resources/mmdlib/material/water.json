@@ -1,0 +1,11 @@
+{
+  "type": "crystal",
+  "color": -13737272,
+  "items": "technomagy:crystal",
+  "blocks": "technomagy:crystal_block technomagy:budding_crystal technomagy:crystal_cluster",
+  "entities": "",
+  "has_fluid": false,
+  "runtime": {
+    "map_color": "color_blue"
+  }
+}

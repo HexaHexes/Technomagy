@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    " g ",
+    " r ",
+    "sss"
+  ],
+  "key": {
+    "g": {
+      "tag": "c:glass_blocks"
+    },
+    "r": {
+      "tag": "c:rods/copper"
+    },
+    "s": {
+      "item": "technomagy:dark_stone_slab"
+    }
+  },
+  "result": {
+    "id": "technomagy:prism",
+    "count": 2
+  }
+}

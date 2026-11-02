@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/slab",
+  "textures": {
+    "bottom": "technomagy:block/air_stone",
+    "top": "technomagy:block/air_stone",
+    "side": "technomagy:block/air_stone"
+  }
+}

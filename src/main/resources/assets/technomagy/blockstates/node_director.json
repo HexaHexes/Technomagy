@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "hanging=false": {
+      "model": "technomagy:block/node_director"
+    },
+    "hanging=true": {
+      "model": "technomagy:block/node_director",
+      "x": 180
+    }
+  }
+}

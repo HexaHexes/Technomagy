@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "technomagy:block/water_stone_slab"
+    },
+    "type=top": {
+      "model": "technomagy:block/water_stone_slab_top"
+    },
+    "type=double": {
+      "model": "technomagy:block/water_stone_block"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "factory": "technomagy:crystal_block",
+  "material_defaults": false,
+  "template": {
+    "properties": {
+      "hardness": 1.5,
+      "blast_resistance": 1.5,
+      "requires_correct_tool": true,
+      "sound": "amethyst"
+    },
+    "tags": ["minecraft:mineable/pickaxe"]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    " g ",
+    " i ",
+    "sss"
+  ],
+  "key": {
+    "g": {
+      "tag": "c:glass_blocks"
+    },
+    "i": {
+      "tag": "c:ingots/copper"
+    },
+    "s": {
+      "item": "technomagy:dark_stone_slab"
+    }
+  },
+  "result": {
+    "id": "technomagy:node_director",
+    "count": 4
+  }
+}

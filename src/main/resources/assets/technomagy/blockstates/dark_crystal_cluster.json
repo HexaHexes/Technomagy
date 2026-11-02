@@ -1,0 +1,108 @@
+{
+  "variants": {
+    "facing=up,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0"
+    },
+    "facing=down,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0",
+      "x": 180
+    },
+    "facing=north,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0",
+      "x": 90
+    },
+    "facing=south,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,stage=0": {
+      "model": "technomagy:block/dark_crystal_cluster_stage0",
+      "x": 90,
+      "y": 270
+    },
+    "facing=up,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1"
+    },
+    "facing=down,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1",
+      "x": 180
+    },
+    "facing=north,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1",
+      "x": 90
+    },
+    "facing=south,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,stage=1": {
+      "model": "technomagy:block/dark_crystal_cluster_stage1",
+      "x": 90,
+      "y": 270
+    },
+    "facing=up,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2"
+    },
+    "facing=down,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2",
+      "x": 180
+    },
+    "facing=north,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2",
+      "x": 90
+    },
+    "facing=south,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,stage=2": {
+      "model": "technomagy:block/dark_crystal_cluster_stage2",
+      "x": 90,
+      "y": 270
+    },
+    "facing=up,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3"
+    },
+    "facing=down,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3",
+      "x": 180
+    },
+    "facing=north,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3",
+      "x": 90
+    },
+    "facing=south,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,stage=3": {
+      "model": "technomagy:block/dark_crystal_cluster_stage3",
+      "x": 90,
+      "y": 270
+    }
+  }
+}

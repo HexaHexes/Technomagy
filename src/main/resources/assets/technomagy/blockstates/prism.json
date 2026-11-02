@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "facing=north,mode=split": {
+      "model": "technomagy:block/prism_split"
+    },
+    "facing=north,mode=combine": {
+      "model": "technomagy:block/prism_combine"
+    },
+    "facing=east,mode=split": {
+      "model": "technomagy:block/prism_split",
+      "y": 90
+    },
+    "facing=east,mode=combine": {
+      "model": "technomagy:block/prism_combine",
+      "y": 90
+    },
+    "facing=south,mode=split": {
+      "model": "technomagy:block/prism_split",
+      "y": 180
+    },
+    "facing=south,mode=combine": {
+      "model": "technomagy:block/prism_combine",
+      "y": 180
+    },
+    "facing=west,mode=split": {
+      "model": "technomagy:block/prism_split",
+      "y": 270
+    },
+    "facing=west,mode=combine": {
+      "model": "technomagy:block/prism_combine",
+      "y": 270
+    }
+  }
+}

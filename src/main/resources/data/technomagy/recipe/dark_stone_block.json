@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "scs",
+    "csc",
+    "scs"
+  ],
+  "key": {
+    "s": {
+      "tag": "c:cobblestones"
+    },
+    "c": {
+      "item": "technomagy:dark_crystal"
+    }
+  },
+  "result": {
+    "id": "technomagy:dark_stone_block",
+    "count": 5
+  }
+}

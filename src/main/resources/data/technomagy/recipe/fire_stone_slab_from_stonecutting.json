@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "technomagy:fire_stone_block"
+  },
+  "result": {
+    "id": "technomagy:fire_stone_slab",
+    "count": 2
+  }
+}

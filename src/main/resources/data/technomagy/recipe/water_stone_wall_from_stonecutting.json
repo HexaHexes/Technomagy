@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "technomagy:water_stone_block"
+  },
+  "result": {
+    "id": "technomagy:water_stone_wall",
+    "count": 1
+  }
+}

@@ -1,0 +1,28 @@
+<book title="Technomagy Test Book" cover="technomagy:book/test_book_cover" fontSize="0.6" home="0:0"
+      xmlns="http://localhost/gbook/base"
+      xmlns:minecraft="http://localhost/gbook/minecraft-addons">
+
+    <include ref="gbook:xml/standard.xml"/>
+
+    <chapter>
+        <section>
+            <p>
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis at turpis in risus maximus lacinia id quis
+                neque. Vestibulum a hendrerit neque. Mauris elementum varius magna, sed faucibus felis lacinia semper.
+                Phasellus eget tincidunt ligula, interdum tincidunt dui. Ut in nunc bibendum nunc porta vestibulum. Sed
+                eu egestas purus, eget fringilla sem. Pellentesque interdum non erat nec mollis. Vivamus feugiat
+                sollicitudin lacinia. Etiam non orci eu purus gravida placerat a ac lorem. Fusce id justo rhoncus,
+                faucibus justo vel, iaculis mauris. Curabitur rutrum ac est in sagittis. In dapibus suscipit arcu, sit
+                amet dapibus mauris condimentum ut. Cras eget ante in elit fermentum egestas id non metus.
+            </p>
+            <p>
+                Nullam vel lorem urna. Vivamus ornare tortor enim, sit amet tincidunt magna efficitur ac. Aliquam erat
+                volutpat. Phasellus sem dui, sollicitudin ut posuere eu, elementum eget dolor. Sed aliquet at risus nec
+                elementum. Suspendisse convallis, ante id porttitor facilisis, quam erat laoreet nibh, at faucibus ante
+                justo eu massa. Phasellus sit amet justo lectus. In vel risus eleifend, sodales metus a, blandit urna.
+                Donec condimentum nunc ante, sit amet porttitor felis blandit eget. Nulla pulvinar turpis id varius
+                cursus. Duis mattis in augue eu hendrerit. Donec a pellentesque erat.
+            </p>
+        </section>
+    </chapter>
+</book>

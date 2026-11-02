@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "technomagy:air_stone_block"
+    }
+  },
+  "result": {
+    "id": "technomagy:air_stone_wall",
+    "count": 6
+  }
+}

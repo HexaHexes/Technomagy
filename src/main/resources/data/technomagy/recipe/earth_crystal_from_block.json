@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "technomagy:earth_crystal_block"
+    }
+  ],
+  "result": {
+    "id": "technomagy:earth_crystal",
+    "count": 9
+  }
+}

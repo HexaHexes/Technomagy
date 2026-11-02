@@ -1,0 +1,131 @@
+{
+	"credit": "Made with Blockbench",
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"base": "technomagy:block/dark_stone",
+		"copper": "minecraft:block/raw_copper_block",
+		"glass": "minecraft:block/glass",
+		"particle": "technomagy:block/dark_stone"
+	},
+	"elements": [
+		{
+			"name": "foot_1",
+			"from": [0, 0, 0],
+			"to": [3, 3, 3],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_2",
+			"from": [13, 0, 0],
+			"to": [16, 3, 3],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_3",
+			"from": [0, 0, 13],
+			"to": [3, 3, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_4",
+			"from": [13, 0, 13],
+			"to": [16, 3, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "platform",
+			"from": [0, 3, 0],
+			"to": [16, 4, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "cradle_front",
+			"from": [6, 4, 3],
+			"to": [10, 7, 5],
+			"faces": {
+				"north": {"texture": "#copper"},
+				"east": {"texture": "#copper"},
+				"south": {"texture": "#copper"},
+				"west": {"texture": "#copper"},
+				"up": {"texture": "#copper"},
+				"down": {"texture": "#copper"}
+			}
+		},
+		{
+			"name": "cradle_back",
+			"from": [6, 4, 11],
+			"to": [10, 7, 13],
+			"faces": {
+				"north": {"texture": "#copper"},
+				"east": {"texture": "#copper"},
+				"south": {"texture": "#copper"},
+				"west": {"texture": "#copper"},
+				"up": {"texture": "#copper"},
+				"down": {"texture": "#copper"}
+			}
+		},
+		{
+			"name": "prism",
+			"from": [5, 8, 2],
+			"to": [11, 14, 14],
+			"rotation": {"angle": 45, "axis": "z", "origin": [8, 11, 8]},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"east": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"up": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"down": {"uv": [0, 0, 16, 16], "texture": "#glass"}
+			}
+		},
+		{
+			"name": "collar",
+			"from": [4.5, 7.5, 7],
+			"to": [11.5, 14.5, 9],
+			"rotation": {"angle": 45, "axis": "z", "origin": [8, 11, 8]},
+			"faces": {
+				"north": {"texture": "#copper"},
+				"east": {"texture": "#copper"},
+				"south": {"texture": "#copper"},
+				"west": {"texture": "#copper"},
+				"up": {"texture": "#copper"},
+				"down": {"texture": "#copper"}
+			}
+		}
+	]
+}

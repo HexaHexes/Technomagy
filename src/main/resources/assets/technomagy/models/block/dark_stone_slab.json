@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/slab",
+  "textures": {
+    "bottom": "technomagy:block/dark_stone",
+    "top": "technomagy:block/dark_stone",
+    "side": "technomagy:block/dark_stone"
+  }
+}

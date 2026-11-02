@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "technomagy:water_stone_block"
+    }
+  },
+  "result": {
+    "id": "technomagy:water_stone_wall",
+    "count": 6
+  }
+}

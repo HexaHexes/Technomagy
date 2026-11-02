@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "###",
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "technomagy:air_crystal"
+    }
+  },
+  "result": {
+    "id": "technomagy:air_crystal_block",
+    "count": 1
+  }
+}

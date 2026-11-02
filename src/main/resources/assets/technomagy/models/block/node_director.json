@@ -1,0 +1,120 @@
+{
+	"credit": "Made with Blockbench",
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"base": "technomagy:block/dark_stone",
+		"copper": "minecraft:block/raw_copper_block",
+		"glass": "minecraft:block/glass",
+		"particle": "technomagy:block/dark_stone"
+	},
+	"elements": [
+		{
+			"name": "foot_1",
+			"from": [0, 0, 0],
+			"to": [3, 3, 3],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_2",
+			"from": [13, 0, 0],
+			"to": [16, 3, 3],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_3",
+			"from": [0, 0, 13],
+			"to": [3, 3, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "foot_4",
+			"from": [13, 0, 13],
+			"to": [16, 3, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "platform",
+			"from": [0, 3, 0],
+			"to": [16, 4, 16],
+			"faces": {
+				"north": {"texture": "#base"},
+				"east": {"texture": "#base"},
+				"south": {"texture": "#base"},
+				"west": {"texture": "#base"},
+				"up": {"texture": "#base"},
+				"down": {"texture": "#base"}
+			}
+		},
+		{
+			"name": "wide_body",
+			"from": [6, 4, 6],
+			"to": [10, 8, 10],
+			"faces": {
+				"north": {"texture": "#copper"},
+				"east": {"texture": "#copper"},
+				"south": {"texture": "#copper"},
+				"west": {"texture": "#copper"},
+				"up": {"texture": "#copper"},
+				"down": {"texture": "#copper"}
+			}
+		},
+		{
+			"name": "post",
+			"from": [7, 8, 7],
+			"to": [9, 14, 9],
+			"faces": {
+				"north": {"texture": "#copper"},
+				"east": {"texture": "#copper"},
+				"south": {"texture": "#copper"},
+				"west": {"texture": "#copper"},
+				"up": {"texture": "#copper"},
+				"down": {"texture": "#copper"}
+			}
+		},
+		{
+			"name": "director",
+			"from": [7, 14, 7],
+			"to": [9, 16, 9],
+			"neoforge_data": {
+				"block_light": 15,
+				"sky_light": 15
+			},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"east": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"up": {"uv": [0, 0, 16, 16], "texture": "#glass"},
+				"down": {"uv": [0, 0, 16, 16], "texture": "#glass"}
+			}
+		}
+	]
+}

@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "technomagy:fire_stone_wall",
+    "technomagy:earth_stone_wall",
+    "technomagy:air_stone_wall",
+    "technomagy:water_stone_wall",
+    "technomagy:light_stone_wall",
+    "technomagy:dark_stone_wall"
+  ]
+}

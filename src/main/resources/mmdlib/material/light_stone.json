@@ -1,0 +1,19 @@
+{
+  "type": "rock",
+  "color": -3028309,
+  "hardness": 1.5,
+  "harvest_tags": [
+    "minecraft:mineable/pickaxe"
+  ],
+  "items": "",
+  "blocks": "block slab wall",
+  "entities": "",
+  "has_fluid": false,
+  "special": {
+    "blast_resistance": 6.0
+  },
+  "runtime": {
+    "block_sound": "stone",
+    "map_color": "sand"
+  }
+}

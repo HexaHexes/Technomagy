@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "scs",
+    "csc",
+    "scs"
+  ],
+  "key": {
+    "s": {
+      "tag": "c:cobblestones"
+    },
+    "c": {
+      "item": "technomagy:light_crystal"
+    }
+  },
+  "result": {
+    "id": "technomagy:light_stone_block",
+    "count": 5
+  }
+}

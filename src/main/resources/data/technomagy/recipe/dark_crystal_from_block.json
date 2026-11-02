@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "technomagy:dark_crystal_block"
+    }
+  ],
+  "result": {
+    "id": "technomagy:dark_crystal",
+    "count": 9
+  }
+}

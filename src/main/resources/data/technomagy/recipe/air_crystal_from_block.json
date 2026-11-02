@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "technomagy:air_crystal_block"
+    }
+  ],
+  "result": {
+    "id": "technomagy:air_crystal",
+    "count": 9
+  }
+}

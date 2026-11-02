@@ -1,0 +1,6 @@
+{
+  "factory": "technomagy:crystal",
+  "template": {
+    "max_stack_size": 64
+  }
+}
