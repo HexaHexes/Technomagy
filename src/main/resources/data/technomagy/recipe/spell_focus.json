@@ -1,0 +1,38 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "SC ",
+    " S ",
+    " CS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stick"
+    },
+    "C": [
+      {
+        "item": "technomagy:earth_crystal"
+      },
+      {
+        "item": "technomagy:air_crystal"
+      },
+      {
+        "item": "technomagy:fire_crystal"
+      },
+      {
+        "item": "technomagy:water_crystal"
+      },
+      {
+        "item": "technomagy:light_crystal"
+      },
+      {
+        "item": "technomagy:dark_crystal"
+      }
+    ]
+  },
+  "result": {
+    "id": "technomagy:spell_focus",
+    "count": 1
+  }
+}

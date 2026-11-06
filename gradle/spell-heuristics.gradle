@@ -1,0 +1,49 @@
+// Dependency-free Java 21 checks for the pure spell interpretation engine.
+// Production files are compiled in isolation to catch accidental Minecraft dependencies.
+sourceSets {
+    heuristicTest {
+        java.srcDir 'src/pureTest/java'
+        // Let IDEs resolve tests against production classes without declaring the same
+        // physical source root twice. The verification compiler below overrides this
+        // classpath and recompiles just the pure production files in isolation.
+        compileClasspath = sourceSets.main.output
+        runtimeClasspath = output
+    }
+}
+
+tasks.named('compileHeuristicTestJava', JavaCompile).configure {
+    classpath = files()
+    source fileTree('src/main/java') {
+        include 'zone/moddev/mc/technomagy/mana/Spell*.java'
+        include 'zone/moddev/mc/technomagy/mana/StreamChemistry.java'
+    }
+}
+
+def heuristicChecks = [
+        'SpellHeuristicsChecks',
+        'SpellStreamChecks',
+        'SpellInterpreterChecks',
+        'StreamChemistryChecks',
+        'SpellEvaluationChecks',
+        'SpellEngineChecks'
+].collect { checkClass ->
+    tasks.register("run${checkClass}", JavaExec) {
+        group = 'verification'
+        description = "Runs dependency-free ${checkClass}."
+        dependsOn tasks.named('heuristicTestClasses')
+        classpath = sourceSets.heuristicTest.runtimeClasspath
+        mainClass = "zone.moddev.mc.technomagy.mana.${checkClass}"
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+}
+
+tasks.register('pureTest') {
+    group = 'verification'
+    description = 'Runs all dependency-free spell heuristic checks.'
+    dependsOn heuristicChecks
+}
+tasks.named('check') {
+    dependsOn tasks.named('pureTest')
+}

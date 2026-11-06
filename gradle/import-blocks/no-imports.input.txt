@@ -1,0 +1,4 @@
+package zone.moddev.mc.technomagy;
+
+/** No imports at all. */
+public final class Example {}

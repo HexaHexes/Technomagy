@@ -48,11 +48,13 @@ SILK_TOUCH = {
 
 
 def write(path, value):
+    """Writes value as indented JSON, creating parent folders."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + '\n')
 
 
 def cube(flavor, form):
+    """Blockstate, block model (cube_all) and item model for a plain full-block form."""
     name = f'{flavor}_{form}'
     write(ASSETS / f'blockstates/{name}.json', {'variants': {'': {'model': f'{NS}:block/{name}'}}})
     write(ASSETS / f'models/block/{name}.json',
@@ -61,6 +63,7 @@ def cube(flavor, form):
 
 
 def cluster(flavor):
+    """Blockstate (every facing and stage), per-stage cross models and the item model of a flavor's cluster."""
     name = f'{flavor}_crystal_cluster'
     variants = {}
     for stage in range(STAGES):
@@ -80,6 +83,7 @@ def cluster(flavor):
 
 
 def loot(flavor):
+    """Loot tables for a flavor's storage block, budding crystal and cluster."""
     crystal, block = f'{NS}:{flavor}_crystal', f'{NS}:{flavor}_crystal_block'
     cluster_id = f'{NS}:{flavor}_crystal_cluster'
     write(DATA / f'loot_table/blocks/{flavor}_crystal_block.json', {
@@ -123,6 +127,7 @@ def loot(flavor):
 
 
 def state(name, **properties):
+    """A block state in the JSON form worldgen configs use; property values written as lower-case strings."""
     value = {'Name': name}
     if properties:
         value['Properties'] = {key: str(prop).lower() for key, prop in properties.items()}
@@ -130,6 +135,7 @@ def state(name, **properties):
 
 
 def provider(name):
+    """A simple_state_provider for a block's default state."""
     return {'type': 'minecraft:simple_state_provider', 'state': state(name)}
 
 
@@ -181,6 +187,7 @@ def geode(flavor):
 
 
 def recipes(flavor):
+    """Storage recipes: 9 crystals into a block, and a block back into 9 crystals."""
     crystal, block = f'{NS}:{flavor}_crystal', f'{NS}:{flavor}_crystal_block'
     write(DATA / f'recipe/{flavor}_crystal_block.json', {
         'type': 'minecraft:crafting_shaped', 'category': 'building',
@@ -195,6 +202,7 @@ def recipes(flavor):
 
 
 def names(flavor):
+    """English names of a flavor's four forms, keyed by translation key."""
     title = flavor.capitalize()
     return {
         f'item.{NS}.{flavor}_crystal': f'{title} Crystal',
@@ -205,6 +213,7 @@ def names(flavor):
 
 
 def main():
+    """Writes every flavor's resources, the geodes of the natural flavors, and the shared lang and tag files."""
     lang_path = ASSETS / 'lang/en_us.json'
     lang = json.loads(lang_path.read_text()) if lang_path.exists() else {}
     lang[f'itemGroup.{NS}.materials'] = 'Technomagy Materials'

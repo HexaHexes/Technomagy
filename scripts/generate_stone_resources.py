@@ -29,6 +29,7 @@ WALL_SIDES = {'north': 0, 'east': 90, 'south': 180, 'west': 270}
 
 
 def self_drop(name):
+    """A loot table dropping the block itself when it survives the explosion."""
     return {
         'type': 'minecraft:block',
         'pools': [{'rolls': 1, 'bonus_rolls': 0,
@@ -39,6 +40,7 @@ def self_drop(name):
 
 
 def block(flavor):
+    """Blockstate, models and loot table of a flavor's full stone block."""
     name, texture = f'{flavor}_stone_block', f'{NS}:block/{flavor}_stone'
     write(ASSETS / f'blockstates/{name}.json', {'variants': {'': {'model': f'{NS}:block/{name}'}}})
     write(ASSETS / f'models/block/{name}.json', {'parent': 'minecraft:block/cube_all', 'textures': {'all': texture}})
@@ -47,6 +49,7 @@ def block(flavor):
 
 
 def slab(flavor):
+    """Blockstate, bottom/top models, item model and loot table (2 when double) of a flavor's slab."""
     name, texture = f'{flavor}_stone_slab', f'{NS}:block/{flavor}_stone'
     sides = {'bottom': texture, 'top': texture, 'side': texture}
     write(ASSETS / f'blockstates/{name}.json', {'variants': {
@@ -73,6 +76,7 @@ def slab(flavor):
 
 
 def wall(flavor):
+    """Multipart blockstate, post/side/inventory models, item model and loot table of a flavor's wall."""
     name, texture = f'{flavor}_stone_wall', f'{NS}:block/{flavor}_stone'
     parts = [{'when': {'up': 'true'}, 'apply': {'model': f'{NS}:block/{name}_post'}}]
     for height, model in (('low', f'{name}_side'), ('tall', f'{name}_side_tall')):
@@ -91,6 +95,7 @@ def wall(flavor):
 
 
 def recipes(flavor):
+    """The stone block from cobblestone and crystals, and slab, wall and stonecutter recipes from it."""
     stone, slab_id, wall_id = (f'{NS}:{flavor}_stone_{form}' for form in ('block', 'slab', 'wall'))
     write(DATA / f'recipe/{flavor}_stone_block.json', {
         'type': 'minecraft:crafting_shaped', 'category': 'building',
@@ -117,6 +122,7 @@ def recipes(flavor):
 
 
 def names(flavor):
+    """English names of a flavor's stone, slab and wall, keyed by translation key."""
     title = f'{flavor.capitalize()} Stone'
     return {
         f'block.{NS}.{flavor}_stone_block': title,
@@ -132,6 +138,7 @@ def add_to_tag(path, values):
 
 
 def main():
+    """Writes every flavor's stone resources and the shared lang and tag files."""
     lang_path = ASSETS / 'lang/en_us.json'
     lang = json.loads(lang_path.read_text()) if lang_path.exists() else {}
     tags = {'pickaxe': [], 'slabs': [], 'walls': []}

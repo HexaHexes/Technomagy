@@ -2,9 +2,25 @@ plugins {
     id 'java-library'
     id 'idea'
     id 'net.neoforged.moddev' version '2.0.148'
+    id 'com.diffplug.spotless' version '8.9.0'
 }
 
-group = 'com.mcmoddev'
+// Import-block step for Spotless and its fixture tests (AGENTS.md section 2).
+apply from: 'gradle/import-blocks.gradle'
+apply from: 'gradle/spell-heuristics.gradle'
+
+// Shared Eclipse JDT profile: four-space blocks and four-space continuations.
+// VS Code uses the same XML profile; import grouping remains a separate custom step.
+// spotlessCheck remains part of check/build. Do not reformat unrelated code when changing policy.
+
+spotless {
+    java {
+        eclipse('4.35').configFile('gradle/java-formatter.xml')
+        custom 'importBlocks', importBlocksStep
+    }
+}
+
+group = 'zone.moddev.mc'
 version = mod_version
 
 base {
@@ -68,6 +84,20 @@ sourceSets.main {
 }
 
 repositories {
+    ivy {
+        name = 'AbilityCorePublicRelease'
+        url = uri('https://github.com/HexaHexes/ability-core/releases/download')
+        patternLayout { artifact 'v[revision]/[artifact]-[revision].[ext]' }
+        metadataSources { artifact() }
+        content { includeModule 'org.bitwisemadness.abilitycore', 'ability_core' }
+    }
+    ivy {
+        name = 'AbilityHotbarPublicRelease'
+        url = uri('https://github.com/HexaHexes/ability-hotbar/releases/download')
+        patternLayout { artifact 'v[revision]/[artifact]-[revision].[ext]' }
+        metadataSources { artifact() }
+        content { includeModule 'org.bitwisemadness.abilityhotbar', 'ability_hotbar' }
+    }
     maven {
         name = 'ModDevZone'
         url = uri('https://maven.moddev.zone/releases')
@@ -85,6 +115,9 @@ repositories {
 }
 
 dependencies {
+    implementation "zone.moddev.mc.skysleylines:SkysLeyLines:${skysleylines_version}"
+    implementation 'org.bitwisemadness.abilitycore:ability_core:1.0.0-alpha.42'
+    implementation 'org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.0-alpha.56'
     // Guidebook (dev.gigaherz.guidebook) has no 1.21.1 release; books.json is still shipped and
     // will be picked up if Guidebook is installed.
     implementation files("libs/mmdlib-${mmdlib_version}.jar")
@@ -96,7 +129,7 @@ dependencies {
 
 // ${file.jarVersion} only resolves from a built jar, so fill in the version for dev runs too.
 processResources {
-    def props = [mod_version: mod_version]
+    def props = [mod_version: mod_version, skysleylines_version: skysleylines_version]
     inputs.properties props
     filesMatching('META-INF/neoforge.mods.toml') {
         expand props
@@ -127,3 +160,5 @@ idea {
         downloadJavadoc = true
     }
 }
+
+apply from: 'gradle/spell-gametests.gradle'

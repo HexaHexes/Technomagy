@@ -37,6 +37,7 @@ SEED = 7
 
 
 def smooth_stone(color, seed):
+    """A 16x16 smooth-stone texture in the given colour: streaky face, darker rim. Deterministic for a seed."""
     rng = random.Random(seed)
     pixels = []
     for y in range(16):
@@ -56,11 +57,13 @@ def smooth_stone(color, seed):
 
 
 def rgb(stone):
+    """The stone's average face colour as 0-255 floats."""
     r, g, b = colorsys.hsv_to_rgb(stone['hue'] / 360, stone['sat'], stone['val'])
     return r * 255, g * 255, b * 255
 
 
 def main():
+    """Writes every flavor's stone texture and, with --preview, the preview sheet."""
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--preview', help='also write an enlarged preview sheet to this path')
     args = parser.parse_args()

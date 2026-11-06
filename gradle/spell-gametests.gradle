@@ -1,0 +1,52 @@
+// Runtime proof for the first sixteen player spells. Test sources never enter the mod JAR.
+sourceSets {
+    spellGameTest {
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += output + sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+neoForge {
+    mods {
+        technomagy { sourceSet sourceSets.spellGameTest }
+    }
+    runs {
+        gameTestServer {
+            type = 'gameTestServer'
+            logLevel = org.slf4j.event.Level.INFO
+            gameDirectory = file('run-spell-gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'technomagy'
+        }
+    }
+}
+tasks.named('runGameTestServer').configure {
+    doFirst {
+        def properties = file('run-spell-gametest/server.properties')
+        if (!properties.exists()) {
+            properties.parentFile.mkdirs()
+            properties.setText('# Disposable spell GameTest server\n', 'UTF-8')
+        }
+    }
+    doLast {
+        def log = file('run-spell-gametest/logs/latest.log')
+        if (!log.exists()) {
+            throw new GradleException('Spell GameTest log was not produced')
+        }
+        def logText = log.getText('UTF-8')
+        def summary = logText =~ /All (\d+) required tests passed/
+        if (!summary.find() || (summary.group(1) as int) != 26) {
+            throw new GradleException('Expected all 26 spell GameTests to pass; inspect ' + log)
+        }
+        if (logText =~ /(?m)^.*\/(ERROR|FATAL)\].*$/) {
+            throw new GradleException('Spell GameTest emitted ERROR/FATAL records; inspect ' + log)
+        }
+    }
+}
+
+// Optional disposable client check: opens/renders the focus menu, captures it, and exits.
+if (providers.gradleProperty('spellClientCheck').map { it.toBoolean() }.getOrElse(false)) {
+    neoForge.runs.client {
+        gameDirectory = file('run-spell-clientcheck')
+        logLevel = org.slf4j.event.Level.INFO
+        systemProperty 'technomagy.testFocusScreen', 'true'
+    }
+}

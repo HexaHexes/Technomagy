@@ -1,0 +1,11 @@
+{
+    "name": "Introduction",
+    "icon": "minecraft:writable_book",
+    "category": "technomagy:main",
+    "pages": [
+        {
+            "type": "patchouli:text",
+            "text": "$(000)\"Any sufficiently advanced technology is indistinguishable from magic.\"$(br)Arthur C. Clarke, January 19. 1968$(brbr)That is called \"Clarkes Third Law\" and the inverse holds true - any sufficiently advanced magic is indistinguishable from Science.$(brbr)Welcome to Technomagy, where Magic and Science are the same thing and you work with the natural magic of the world to build things that make life easier."
+        }
+    ]
+}

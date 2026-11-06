@@ -31,13 +31,15 @@ build/
 gradle-app.setting
 .gradletasknamecache
 
-# Keep the Gradle wrapper jar (.jar files are otherwise ignored)
-!gradle-wrapper.jar
+# The wrapper itself isn't shipped; only the gradlew scripts are
+gradle/wrapper/
 
 # Game run directories
 run/
 runs/
 run-data/
+run-spell-gametest/
+run-spell-clientcheck/
 
 # Data generator cache (the generated resources themselves are kept)
 src/generated/**/.cache/

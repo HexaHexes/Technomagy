@@ -57,10 +57,12 @@ def palette(f):
 # --- ray traced crystal rods -------------------------------------------------------------
 
 def norm(v):
+    """The unit vector along v."""
     m = math.sqrt(sum(c * c for c in v))
     return tuple(c / m for c in v)
 
 
+# 3-vector arithmetic on tuples
 def sub(a, b): return tuple(x - y for x, y in zip(a, b))
 def add(a, b): return tuple(x + y for x, y in zip(a, b))
 def mul(a, s): return tuple(x * s for x in a)
@@ -129,6 +131,7 @@ LIGHT = norm((-0.55, 0.75, 0.9))
 
 
 def shade_of(normal):
+    """Palette index (1 = darkest face, 5 = brightest) for a facet with this outward normal, lit from LIGHT."""
     lit = max(0.0, dot(normal, LIGHT))
     return max(1, min(5, round(0.6 + 4.6 * lit ** 1.3)))
 
@@ -166,6 +169,7 @@ def render(solids, size=16, samples=4):
 
 
 def glint(grid, points):
+    """Marks the given pixels as glints (palette index 6) where they land on a bright facet; returns grid."""
     for x, y in points:
         if grid[y][x] is not None and grid[y][x] >= 3:
             grid[y][x] = 6
@@ -174,6 +178,7 @@ def glint(grid, points):
 
 def crystal_item():
     # Lies bottom-left to top-right like vanilla shards, top end tipped toward the viewer.
+    """Shade grid of the harvested crystal item: one rod lying diagonally, like vanilla shards."""
     return render([rod((4.9, 4.9), 45, 8.6, 2.35, cap=1.5)])
 
 
@@ -188,6 +193,7 @@ CLUSTER_STAGES = [
 
 
 def cluster(stage):
+    """Shade grid of one cluster growth stage (0 = small bud ... 3 = full cluster), with a glint from stage 2."""
     g = render([rod(*r, cap=0.85, tilt=0.12) for r in CLUSTER_STAGES[stage]])
     top = next(y for y in range(16) if any(v is not None for v in g[y]))
     return glint(g, [(7, top + 2)] if stage >= 2 else [])
@@ -248,14 +254,17 @@ def budding(seed):
 # --- output ----------------------------------------------------------------------------------
 
 def to_pixels(grid, pal):
+    """RGBA rows from a shade grid: each index looked up in the palette, None as transparent."""
     return [[(0, 0, 0, 0) if v is None else pal[v] for v in row] for row in grid]
 
 
 def write_png(path, pixels):
+    """Writes RGBA rows as an 8-bit RGBA PNG, creating parent folders."""
     h, w = len(pixels), len(pixels[0])
     raw = b''.join(b'\x00' + bytes(c for p in row for c in p) for row in pixels)
 
     def chunk(kind, data):
+        """One PNG chunk: length, type, data and CRC."""
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -286,10 +295,12 @@ def preview(path, rows, scale=10):
 
 
 def tile2(pixels):
+    """The texture repeated 2x2, to check in previews that its edges tile."""
     return [row + row for row in pixels] * 2
 
 
 def main():
+    """Writes every flavor's textures and, with --preview, the preview sheet."""
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--preview', help='also write an enlarged preview sheet to this path')
     args = parser.parse_args()

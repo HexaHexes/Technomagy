@@ -5,7 +5,7 @@ license="All Rights Reserved"
 modId="technomagy"
 version="${mod_version}"
 displayName="Technomagy"
-authors="DShadowWolf, JessLovely, thePalindrome, gigaherz"
+authors="DShadowWolf, JessLovely, thePalindrome, gigaherz, Face of Cat, SkyBlade, YaibaToKen"
 description='''
 Any sufficiently advanced technology is indistinguishable from magic - Arthur C. Clarke
 '''
@@ -32,5 +32,26 @@ Any sufficiently advanced technology is indistinguishable from magic - Arthur C.
    modId="mmdlib"
    type="required"
    versionRange="[2.0.0-alpha,)"
+   ordering="AFTER"
+   side="BOTH"
+
+[[dependencies.technomagy]]
+   modId="ability_core"
+   type="required"
+   versionRange="[1.0.0-alpha.42]"
+   ordering="AFTER"
+   side="BOTH"
+
+[[dependencies.technomagy]]
+   modId="skysleylines"
+   type="required"
+   versionRange="[${skysleylines_version}]"
+   ordering="AFTER"
+   side="BOTH"
+
+[[dependencies.technomagy]]
+   modId="ability_hotbar"
+   type="required"
+   versionRange="[1.0.0-alpha.56]"
    ordering="AFTER"
    side="BOTH"

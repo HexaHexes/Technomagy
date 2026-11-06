@@ -1,0 +1,13 @@
+package zone.moddev.mc.technomagy.crystal;
+
+import com.mojang.serialization.Codec;
+
+import org.slf4j.Logger;
+
+import zone.moddev.mc.lib.MMDLib;
+import zone.moddev.mc.lib.api.BlockContext;
+
+import zone.moddev.mc.technomagy.Technomagy;
+import zone.moddev.mc.technomagy.mana.Mana;
+
+public final class Example {}

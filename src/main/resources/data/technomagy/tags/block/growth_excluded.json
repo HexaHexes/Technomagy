@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "technomagy:earth_budding_crystal",
+    "technomagy:air_budding_crystal",
+    "technomagy:fire_budding_crystal",
+    "technomagy:water_budding_crystal",
+    "technomagy:light_budding_crystal",
+    "technomagy:dark_budding_crystal"
+  ]
+}

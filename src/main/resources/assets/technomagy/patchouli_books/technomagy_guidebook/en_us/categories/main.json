@@ -1,0 +1,5 @@
+{
+    "name": "Main",
+    "description": "This is the primary book category that everything that doesn't fit another category goes in",
+    "icon": "minecraft:writable_book"
+}
