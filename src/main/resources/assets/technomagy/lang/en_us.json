@@ -82,5 +82,7 @@
   "mana.technomagy.water": "Water",
   "mana.technomagy.light": "Light",
   "mana.technomagy.dark": "Dark",
-  "mana.technomagy.raw": "Raw"
+  "mana.technomagy.raw": "Raw",
+  "hud.technomagy.mana_pool": "%s: %s/%s",
+  "hud.technomagy.mana_pool_disabled": " (inactive)"
 }

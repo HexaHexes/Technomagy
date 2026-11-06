@@ -130,7 +130,7 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 26 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 27 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
 Ward/Steam interaction, and the actual focus air/block-use paths. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime

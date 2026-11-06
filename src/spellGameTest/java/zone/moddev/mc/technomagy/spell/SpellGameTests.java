@@ -174,6 +174,9 @@ public final class SpellGameTests {
         net.neoforged.neoforge.network.registration.ChannelAttributes
             .getOrCreateCommonChannels(connection, net.minecraft.network.ConnectionProtocol.PLAY)
             .add(ResourceLocation.fromNamespaceAndPath("ability_hotbar", "bar_state_snapshot"));
+        net.neoforged.neoforge.network.registration.ChannelAttributes
+            .getOrCreateCommonChannels(connection, net.minecraft.network.ConnectionProtocol.PLAY)
+            .add(ManaPoolSnapshot.TYPE.id());
         helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
         return player;
     }
@@ -457,6 +460,38 @@ public final class SpellGameTests {
         player.setItemInHand(InteractionHand.OFF_HAND, focus);
         SpellContent.castSelected(player, InteractionHand.OFF_HAND);
         h.assertTrue(player.getHealth() > 10, "Offhand focus did not cast the hotbar selection");
+        h.succeed();
+    }
+
+    /** Checks bounded HUD packet round trips and truthful zero/over-capacity pool display data. */
+    @GameTest(template = "empty")
+    public static void personalPoolSnapshot(GameTestHelper h) {
+        var power = LeyLinesApi.playerPower(h.getLevel().getServer());
+        var owner = UUID.randomUUID();
+        PlayerManaPools.initialize(power, owner);
+        var initial = ManaPoolSnapshot.from(power.inspect(owner));
+        h.assertTrue(initial.bars().size() == 6 && initial.bars().stream()
+            .allMatch(bar -> bar.balance() == 3 && bar.capacity() == 10 && bar.active()),
+            "HUD did not project six personal elemental reserves");
+        var consumer = new PowerRequest.Consumer(Technomagy.FIRE);
+        h.assertTrue(power.configure(owner, Technomagy.FIRE,
+            new PlayerPowerService.Settings(false, 0, null), consumer).succeeded(),
+            "Could not disable the test pool");
+        var snapshot = ManaPoolSnapshot.from(power.inspect(owner));
+        var fire = snapshot.bars().get(ManaType.FLAVORS.indexOf(ManaType.FIRE));
+        h.assertTrue(!fire.active() && fire.capacity() == 0 && fire.balance() == 3,
+            "HUD must preserve over-capacity balances for disabled pools");
+        var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
+            io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());
+        try {
+            ManaPoolSnapshot.CODEC.encode(buffer, snapshot);
+            h.assertTrue(ManaPoolSnapshot.CODEC.decode(buffer).equals(snapshot),
+                "HUD snapshot changed during network round trip");
+        } finally {
+            buffer.release();
+        }
+        h.assertTrue(ManaPoolSnapshot.from(power.inspect(UUID.randomUUID())).bars().stream()
+            .noneMatch(ManaPoolSnapshot.Bar::configured), "Missing pools appeared configured");
         h.succeed();
     }
 

@@ -96,6 +96,7 @@ public final class SpellContent {
             ModConfig.Type.SERVER, SpellConfig.SPEC, "technomagy-spells-server.toml");
         NeoForge.EVENT_BUS.register(RUNTIME);
         NeoForge.EVENT_BUS.addListener(PlayerManaPools::joined);
+        NeoForge.EVENT_BUS.register(new ManaPoolSync());
     }
 
     /**
@@ -147,7 +148,13 @@ public final class SpellContent {
         event.registrar("technomagy")
             .versioned("1")
             .playToServer(ElementSelectionPayload.TYPE, ElementSelectionPayload.CODEC,
-                ElementSelectionPayload::handle);
+                ElementSelectionPayload::handle)
+            .playToClient(ManaPoolSnapshot.TYPE, ManaPoolSnapshot.CODEC,
+                (packet, context) -> context.enqueueWork(() -> {
+                    if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+                        zone.moddev.mc.technomagy.spell.client.PersonalManaHud.receive(packet);
+                    }
+                }));
     }
 
     /** Makes the focus available for runtime testing and ordinary creative play. */

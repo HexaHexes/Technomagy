@@ -74,6 +74,25 @@ migration and connecting the engine to prism block entities are separate work.
 | Natural and generated sources (D17, D18) | Not yet |
 | Item capability (mana in items) | Not yet |
 
+## Personal pool HUD
+
+D75 displays six personal elemental pools at the bottom right during ordinary
+play, grouped into two segmented bars: Earth/Air/Fire/Water and Light/Dark.
+Each segment has its own fill and balance/capacity. The bars move above the
+vanilla status area at narrow GUI sizes. There is no Raw bar and no requirement to hold a focus. Labels show actual
+balance/capacity; inactive pools are gray and labeled. Fill is clamped without
+hiding balances above a lowered capacity. Open screens, F1, spectators, and
+incomplete pool data hide the HUD.
+
+`ManaPoolSnapshot` carries six fixed entries in `ManaType.FLAVORS` order.
+`ManaPoolSync` samples server-owned LeyLines pools after player ticks and sends
+only first/changed snapshots to their owner. Respawn creates a fresh recipient
+instance; logout/server shutdown release sync caches. `PersonalManaHud` holds
+only client display state, cleared on disconnect. This display does not consume,
+regenerate, or transfer power. The implementation follows the supplied
+[BattleMageDemo HUD](https://github.com/MinecraftModDevelopmentMods/BattleMageDemo/blob/0952f35707b55e4f15544400b473fad2fe4349fc/src/main/java/zone/moddev/mc/battlemagedemo/MageClient.java)
+and its companion snapshot packet.
+
 ## Mana types
 
 `ManaType` has seven values (D14):

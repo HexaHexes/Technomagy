@@ -1,4 +1,6 @@
 /**
+ * Personal elemental pool display and server snapshot synchronization implement D75.
+ *
  * The focus also stores a separate server-validated machinery element selection (D73).
  *
  * Ability Hotbar owns spell selection and the focus casts its active slot (D74).

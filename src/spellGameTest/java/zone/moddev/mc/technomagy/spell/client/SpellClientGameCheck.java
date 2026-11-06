@@ -63,6 +63,23 @@ public final class SpellClientGameCheck {
         } catch (IOException exception) {
             throw new IllegalStateException("Could not capture focus selection screen", exception);
         }
+        // Exercise the production HUD row renderer with zero, full, inactive, and over-capacity
+        // fixtures. This proves layout only; the server tests cover actual pool projection/codec.
+        var rows = java.util.List.of(
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(3, 10, true, true),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(0, 10, true, true),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(10, 10, true, true),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(7, 10, true, true),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(3, 0, true, false),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot.Bar(12, 10, true, true));
+        PersonalManaHud.draw(event.getGuiGraphics(),
+            new zone.moddev.mc.technomagy.spell.ManaPoolSnapshot(rows));
+        try (NativeImage image = Screenshot
+            .takeScreenshot(Minecraft.getInstance().getMainRenderTarget())) {
+            image.writeToFile(Path.of("mana-hud-check.png"));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not capture personal mana HUD", exception);
+        }
         captured = true;
         Technomagy.LOGGER.info(
             "SPELL_CLIENT_CHECK: seven focus buttons rendered; screenshot captured");

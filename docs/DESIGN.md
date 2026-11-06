@@ -742,6 +742,30 @@ same server activation pipeline. The separate `.` machinery element selector
 (D73), including Raw, remains; Raw still cannot be cast. Spell charging remains
 pending the atomic multi-currency payment contract.
 
+**D75.** Show the player's six personal elemental pools (D70) as a bottom-right
+HUD, based on BattleMageDemo's MageClient and ManaSnapshot at commit
+`0952f35707b55e4f15544400b473fad2fe4349fc`. Use two segmented bars: Earth/Air/Fire/Water in the first and Light/Dark
+in the second. Each independently filled segment shows its element,
+whole-unit balance/capacity, and a fill bar; inactive pools are labeled and
+gray. The active palette uses BattleMageDemo's Fire `#F3764D`, Water `#4BA4F4`,
+Air `#B7DBDC`, and Earth `#9BC66A`; Light is eggshell white `#F0EAD6`, and Dark
+is `#333333`. Raw, ritual reserves, and world nexus balances are not part of this HUD.
+The HUD is visible during ordinary gameplay without requiring a held device;
+hide it for open screens, hidden GUI (F1), spectators, or incomplete pool data.
+Use 17-pixel rows with a total width of up to four 96-pixel segments,
+clamped to the available screen width. The two rows have the same total width;
+the second row divides it into two segments. Anchor eight scaled pixels from
+the right and bottom edges; when the rows would overlap the vanilla central
+HUD horizontally, raise them above its status area with a 60-pixel bottom
+margin. Fit labels within their segments, including localized names. Fill is capped to the bar width while
+labels retain true balances, including balances above a reduced capacity.
+
+The server sends a six-entry display snapshot only to its owning player,
+after player ticks when displayed data changes, and initially for a new player
+instance. Client display state clears on disconnect; server sync caches clear
+on logout and server shutdown. This is read-only display synchronization,
+not a new reserve or a client-side authority over power.
+
 ## Integration foundations
 
 **D40.** Sky's Ley Lines is a **required dependency on both client and server**
