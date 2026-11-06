@@ -22,13 +22,14 @@ import zone.moddev.mc.technomagy.spell.ManaPoolSnapshot;
  */
 @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT)
 public final class PersonalManaHud {
-    private static final int SEGMENT_WIDTH = 96;
+    private static final int WIDTH = 160;
+    private static final int VANILLA_HOTBAR_HALF_WIDTH = 91;
     private static final java.util.List<ManaType> CLASSICAL = java.util.List.of(
         ManaType.EARTH, ManaType.AIR, ManaType.FIRE, ManaType.WATER);
     private static final java.util.List<ManaType> POLAR = java.util.List.of(
         ManaType.LIGHT, ManaType.DARK);
     private static final int MARGIN = 8;
-    private static final int ROW_HEIGHT = 17;
+    private static final int ROW_HEIGHT = 27;
     private static ManaPoolSnapshot current;
 
     private PersonalManaHud() {
@@ -59,15 +60,20 @@ public final class PersonalManaHud {
 
     /**
      * Draws two equal-width segmented rows (D75). Each segment normalizes only its own pool;
-     * balances are never summed. At narrow GUI sizes, move above the vanilla status area rather
-     * than covering its hotbar, health, or armor. Snapshot order remains independent of row order.
+     * balances are never summed. The whole HUD fits in the gutter to the right of the vanilla
+     * hotbar, rather than moving toward the screen center at larger GUI scales. Names and amounts
+     * occupy separate lines to stay legible in compact segments. Snapshot order is independent of
+     * row order.
      */
     static void draw(GuiGraphics gui, ManaPoolSnapshot snapshot) {
         int right = gui.guiWidth() - MARGIN;
-        int width = Math.min(SEGMENT_WIDTH * CLASSICAL.size(), Math.max(0, right - MARGIN));
+        int gutter = right - (gui.guiWidth() / 2 + VANILLA_HOTBAR_HALF_WIDTH + MARGIN);
+        int width = Math.min(WIDTH, Math.max(0, gutter));
+        if (width == 0) {
+            return;
+        }
         int left = right - width;
-        int bottomMargin = left < gui.guiWidth() / 2 + 91 + MARGIN ? 60 : MARGIN;
-        int top = gui.guiHeight() - bottomMargin - ROW_HEIGHT * 2;
+        int top = gui.guiHeight() - MARGIN - ROW_HEIGHT * 2;
         drawRow(gui, snapshot, CLASSICAL, left, top, width);
         drawRow(gui, snapshot, POLAR, left, top + ROW_HEIGHT, width);
     }
@@ -75,29 +81,21 @@ public final class PersonalManaHud {
     /** Draws independently filled segments with a one-pixel gap and labels fitted to each cell. */
     private static void drawRow(GuiGraphics gui, ManaPoolSnapshot snapshot,
         java.util.List<ManaType> elements, int left, int y, int width) {
-        var font = Minecraft.getInstance().font;
         for (int index = 0; index < elements.size(); index++) {
             var element = elements.get(index);
             var bar = snapshot.bars().get(ManaType.FLAVORS.indexOf(element));
             int x = left + index * width / elements.size();
             int right = left + (index + 1) * width / elements.size() - 1;
             int segmentWidth = Math.max(0, right - x);
-            var label = Component.translatable("hud.technomagy.mana_pool",
-                Component.translatable("mana.technomagy." + element.getSerializedName()),
+            var label = Component.translatable("mana.technomagy." + element.getSerializedName());
+            var amount = Component.translatable("hud.technomagy.mana_pool_amount",
                 bar.balance(), bar.capacity());
             if (!bar.active()) {
                 label.append(Component.translatable("hud.technomagy.mana_pool_disabled"));
             }
             int color = bar.active() ? color(element) : 0xffaaaaaa;
-            // Fit localized names and large numbers without spilling into adjacent elements.
-            float scale = Math.min(1.0f, (float) segmentWidth / Math.max(1, font.width(label)));
-            if (scale > 0) {
-                gui.pose().pushPose();
-                gui.pose().translate(x, y, 0);
-                gui.pose().scale(scale, scale, 1);
-                gui.drawString(font, label, 0, 0, color);
-                gui.pose().popPose();
-            }
+            drawLabel(gui, label, x, y, segmentWidth, color);
+            drawLabel(gui, amount, x, y + 16, segmentWidth, color);
             gui.fill(x, y + 10, right, y + 14, 0xcc191a20);
             int fill = bar.capacity() == 0
                 ? 0
@@ -107,6 +105,21 @@ public final class PersonalManaHud {
                 gui.fill(x, y + 10, x + fill, y + 14, color);
             }
         }
+    }
+
+    /** Fits a localized label into its segment without spilling into its neighbors. */
+    private static void drawLabel(GuiGraphics gui, Component label, int x, int y,
+        int width, int color) {
+        var font = Minecraft.getInstance().font;
+        float scale = Math.min(1.0f, (float) width / Math.max(1, font.width(label)));
+        if (scale <= 0) {
+            return;
+        }
+        gui.pose().pushPose();
+        gui.pose().translate(x, y, 0);
+        gui.pose().scale(scale, scale, 1);
+        gui.drawString(font, label, 0, 0, color);
+        gui.pose().popPose();
     }
 
     /** Returns each elemental hue; Raw has no personal pool and is rejected. */

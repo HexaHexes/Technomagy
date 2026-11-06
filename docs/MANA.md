@@ -78,8 +78,9 @@ migration and connecting the engine to prism block entities are separate work.
 
 D75 displays six personal elemental pools at the bottom right during ordinary
 play, grouped into two segmented bars: Earth/Air/Fire/Water and Light/Dark.
-Each segment has its own fill and balance/capacity. The bars move above the
-vanilla status area at narrow GUI sizes. There is no Raw bar and no requirement to hold a focus. Labels show actual
+Each segment has its own fill and balance/capacity. The complete HUD is at most 160 scaled pixels wide and shrinks to fit the
+right-hand gutter beside the vanilla hotbar, staying eight pixels from the
+right and bottom edges. Names and amounts occupy separate lines. There is no Raw bar and no requirement to hold a focus. Labels show actual
 balance/capacity; inactive pools are gray and labeled. Fill is clamped without
 hiding balances above a lowered capacity. Open screens, F1, spectators, and
 incomplete pool data hide the HUD.

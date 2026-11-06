@@ -752,13 +752,14 @@ Air `#B7DBDC`, and Earth `#9BC66A`; Light is eggshell white `#F0EAD6`, and Dark
 is `#333333`. Raw, ritual reserves, and world nexus balances are not part of this HUD.
 The HUD is visible during ordinary gameplay without requiring a held device;
 hide it for open screens, hidden GUI (F1), spectators, or incomplete pool data.
-Use 17-pixel rows with a total width of up to four 96-pixel segments,
-clamped to the available screen width. The two rows have the same total width;
-the second row divides it into two segments. Anchor eight scaled pixels from
-the right and bottom edges; when the rows would overlap the vanilla central
-HUD horizontally, raise them above its status area with a 60-pixel bottom
-margin. Fit labels within their segments, including localized names. Fill is capped to the bar width while
-labels retain true balances, including balances above a reduced capacity.
+Use two 27-pixel rows with a total HUD width capped at 160 scaled pixels,
+further limited to the space right of the vanilla hotbar with an eight-pixel
+gap. Anchor eight scaled pixels from the right and bottom edges; do not move
+the HUD into the center or above the main hotbar. If no corner space exists,
+skip rendering rather than overlap the hotbar. Each segment places its element
+name above the fill and its balance/capacity below it. Fit localized labels
+within each segment. Fill is capped while labels retain actual balances,
+including balances above a reduced capacity.
 
 The server sends a six-entry display snapshot only to its owning player,
 after player ticks when displayed data changes, and initially for a new player
