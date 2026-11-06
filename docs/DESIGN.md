@@ -742,24 +742,25 @@ same server activation pipeline. The separate `.` machinery element selector
 (D73), including Raw, remains; Raw still cannot be cast. Spell charging remains
 pending the atomic multi-currency payment contract.
 
-**D75.** Show the player's six personal elemental pools (D70) as a bottom-right
-HUD, based on BattleMageDemo's MageClient and ManaSnapshot at commit
-`0952f35707b55e4f15544400b473fad2fe4349fc`. Use two segmented bars: Earth/Air/Fire/Water in the first and Light/Dark
-in the second. Each independently filled segment shows its element,
-whole-unit balance/capacity, and a fill bar; inactive pools are labeled and
-gray. The active palette uses BattleMageDemo's Fire `#F3764D`, Water `#4BA4F4`,
-Air `#B7DBDC`, and Earth `#9BC66A`; Light is eggshell white `#F0EAD6`, and Dark
-is `#333333`. Raw, ritual reserves, and world nexus balances are not part of this HUD.
-The HUD is visible during ordinary gameplay without requiring a held device;
-hide it for open screens, hidden GUI (F1), spectators, or incomplete pool data.
-Use two 27-pixel rows with a total HUD width capped at 160 scaled pixels,
-further limited to the space right of the vanilla hotbar with an eight-pixel
-gap. Anchor eight scaled pixels from the right and bottom edges; do not move
-the HUD into the center or above the main hotbar. If no corner space exists,
-skip rendering rather than overlap the hotbar. Each segment places its element
-name above the fill and its balance/capacity below it. Fit localized labels
-within each segment. Fill is capped while labels retain actual balances,
-including balances above a reduced capacity.
+**D75.** Show the player's six personal elemental pools (D70) as three split
+glass orbs in the bottom-right HUD. Pair Earth with Air, Fire with Water, and
+Light with Dark (D34). Each chamber fills independently from the bottom and
+eases to its new level over 240 milliseconds. The active palette uses
+BattleMageDemo's Fire `#F3764D`, Water `#4BA4F4`, Air `#B7DBDC`, and Earth
+`#9BC66A`. Light is eggshell white `#F0EAD6` and Dark uses a violet highlight
+`#A88AC9` for contrast against the glass. Show each element's exact
+balance/capacity below its name. Use one shared text size across the HUD.
+Show inactive pools with gray text and an empty chamber.
+Clamp the visual fill at capacity while still displaying any excess balance.
+This HUD displays personal elemental pools only.
+
+Show the orbs during ordinary gameplay without requiring a held device. Hide
+them for open screens, hidden GUI (F1), spectators, or incomplete pool data.
+Anchor the group eight scaled pixels from the right and bottom edges. Use up
+to 160 scaled pixels to the right of the vanilla hotbar, with an eight-pixel
+gap. Place the orbs side by side with labels below when the gutter is wide
+enough. Stack the orbs with labels beside them at larger GUI scales. Skip the
+HUD if the available space cannot fit the stack.
 
 The server sends a six-entry display snapshot only to its owning player,
 after player ticks when displayed data changes, and initially for a new player

@@ -1,5 +1,5 @@
 /**
- * Personal elemental pool display and server snapshot synchronization implement D75.
+ * Paired elemental orbs display the latest server-owned personal pools (D75).
  *
  * Client-only machinery element selection presentation (D73). Ability Hotbar owns spell selection
  * (D74). Selection is sent as intent; the server owns held-item checks, selected spell and mana
