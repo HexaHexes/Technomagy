@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
@@ -88,13 +89,17 @@ public final class SpellContent {
         ITEMS.register(bus);
         BLOCKS.register(bus);
         EFFECTS.register(bus);
+        PoolRecharge.register(bus);
         bus.addListener(SpellContent::abilities);
         bus.addListener(SpellContent::setup);
         bus.addListener(SpellContent::payloads);
         bus.addListener(SpellContent::creative);
         container.registerConfig(
             ModConfig.Type.SERVER, SpellConfig.SPEC, "technomagy-spells-server.toml");
+        bus.addListener(ModConfigEvent.Loading.class, SpellPayment::configChanged);
+        bus.addListener(ModConfigEvent.Reloading.class, SpellPayment::configChanged);
         NeoForge.EVENT_BUS.register(RUNTIME);
+        NeoForge.EVENT_BUS.addListener(PoolRecharge::tick);
         NeoForge.EVENT_BUS.addListener(PlayerManaPools::joined);
         NeoForge.EVENT_BUS.register(new ManaPoolSync());
     }
@@ -129,7 +134,9 @@ public final class SpellContent {
     }
 
     /**
-     * Publishes native handlers after construction; the reserve/charging integration is deferred.
+     * Publishes native handlers after construction. They use Ability Core's NATIVE charging model:
+     * Technomagy charges personal pools itself, between validation and application (D76), because
+     * Core's external charging runs after the effect and only logs a failed charge.
      */
     private static void setup(FMLCommonSetupEvent event) {
         event.enqueueWork(

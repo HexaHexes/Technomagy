@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.minecraft.core.BlockPos;
@@ -71,9 +72,10 @@ import zone.moddev.mc.technomagy.mana.SpellEngine;
  *
  * <p>
  * All target coordinates are computed on the server. Clients cannot supply damage, duration,
- * radius, or arbitrary target positions. Power charging is intentionally deferred to the upcoming
- * Ley Lines contract. Timed wards/mist are owned by this runtime and cleared at server shutdown;
- * ordinary status effects and scheduled temporary blocks use Minecraft's own persistence.
+ * radius, or arbitrary target positions. Casts are validated before the caster is charged from
+ * their personal pools through {@link SpellPayment} (D76). Timed wards/mist are owned by this
+ * runtime and cleared at server shutdown; ordinary status effects and scheduled temporary blocks
+ * use Minecraft's own persistence.
  */
 final class SpellRuntime {
     private static final TagKey<Block> GROWTH_EXCLUDED = TagKey.create(
@@ -83,8 +85,35 @@ final class SpellRuntime {
     private final List<Mist> mists = new ArrayList<>();
 
     /**
-     * Validates the held casting device (D74), computes targets, and dispatches one registered
-     * ability.
+     * Validates the held casting device (D74), computes targets, charges the caster (D76), and
+     * applies one registered ability.
+     *
+     * <h2>Validate, charge, apply</h2>
+     *
+     * <p>
+     * Every handler is split in two. {@code prepare*} methods check everything that can be checked
+     * without changing the world (target presence, protection and placement vetoes, recipe outputs,
+     * receiver acceptance) and return the {@link Effect} to apply, or empty when the cast has no
+     * valid target. Only then is the caster charged, so an invalid cast never costs anything and
+     * never needs a refund.
+     *
+     * <p>
+     * Some outcomes are decided only at application time: damage, healing, and status effects can
+     * be cancelled by events or rejected by the target; block and entity placement can still be
+     * refused; Growth's extra ticks are random. When the applied effect reports that it did
+     * nothing, the charge is {@linkplain SpellPayment#refund refunded} and the cast is refused, so
+     * no effect is ever paid for without happening.
+     *
+     * @param spell
+     *            the registered spell being activated
+     * @param request
+     *            Ability Core's request; its ability ID must match the spell
+     * @param player
+     *            the caster
+     * @return {@link ActivationResult#ACTED} when the effect happened and was paid for, otherwise
+     *         the refusal
+     * @throws IllegalStateException
+     *             if called off the server thread
      */
     ActivationResult cast(PlayerSpell spell, ActivationRequest request, ServerPlayer player) {
         ServerLevel level = player.serverLevel();
@@ -133,52 +162,66 @@ final class SpellRuntime {
         if (harmful && target.living() != null && !mayHarm(player, target.living())) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_RESTRICTED);
         }
-        boolean acted = switch (spell) {
-            case ERODE -> processBlock(player, target.block(), false);
-            case FORGE -> forge(player, target);
-            case LIGHTNING -> lightning(player, target);
-            case STEAM -> push(player, target);
-            case MIST -> mist(player, target.position());
+        Optional<Effect> effect = switch (spell) {
+            case ERODE -> prepareProcessBlock(player, target.block(), false);
+            case FORGE -> prepareForge(player, target);
+            case LIGHTNING -> Optional.of(() -> lightning(player, target));
+            case STEAM -> preparePush(player, target);
+            case MIST -> Optional.of(() -> mist(player, target.position()));
             case CONSTRAINT ->
-                apply(
+                prepareTimedEffect(
                     target.living(),
                     MobEffects.MOVEMENT_SLOWDOWN,
                     SpellConfig.DURATION.get(),
                     SpellConfig.CONSTRAINT_AMPLIFIER.get());
-            case WARD -> ward(target.living() == null ? player : target.living());
-            case ENTOMB -> entomb(player, target.living());
-            case REVEAL -> reveal(player);
+            case WARD -> {
+                LivingEntity warded = target.living() == null ? player : target.living();
+                yield Optional.of(() -> ward(warded));
+            }
+            case ENTOMB -> prepareEntomb(player, target.living());
+            case REVEAL -> prepareReveal(player);
             case SHROUD ->
-                (target.living() == null ? player : target.living())
-                    .addEffect(
-                        new MobEffectInstance(
-                            SpellContent.SHROUD,
-                            SpellConfig.DURATION.get()));
-            case RADIANCE -> radiance(player, target);
+                prepareTimedEffect(
+                    target.living() == null ? player : target.living(),
+                    SpellContent.SHROUD,
+                    SpellConfig.DURATION.get(),
+                    0);
+            case RADIANCE -> prepareRadiance(player, target);
             case BLIGHT ->
-                apply(
+                prepareTimedEffect(
                     target.living(),
                     MobEffects.WITHER,
                     SpellConfig.SHORT_DURATION.get(),
                     SpellConfig.BLIGHT_AMPLIFIER.get());
-            case MEND -> heal(target.living() == null ? player : target.living());
+            case MEND -> prepareHeal(target.living() == null ? player : target.living());
             case LEACH ->
-                target.living() != null
-                    && target.living()
-                        .addEffect(
-                            new MobEffectInstance(
-                                SpellContent.LEACH,
-                                SpellConfig.DURATION.get()));
+                prepareTimedEffect(
+                    target.living(),
+                    SpellContent.LEACH,
+                    SpellConfig.DURATION.get(),
+                    0);
             case GROWTH ->
-                grow(
+                prepareGrowth(
                     player,
                     target.block(),
                     evaluated.effects().getFirst().growth().orElseThrow());
-            case LIFE_AND_DEATH -> energy(level, target.block(), target.face());
+            case LIFE_AND_DEATH -> prepareEnergy(level, target.block(), target.face());
         };
-        return acted
-            ? ActivationResult.ACTED
-            : ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
+        if (effect.isEmpty()) {
+            return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
+        }
+        SpellPayment.Charge charge;
+        switch (SpellPayment.charge(player, spell)) {
+            case SpellPayment.Outcome.Refused refused -> {
+                return ActivationResult.refused(refused.outcome());
+            }
+            case SpellPayment.Outcome.Paid paid -> charge = paid.charge();
+        }
+        if (!effect.get().apply()) {
+            SpellPayment.refund(player, spell, charge);
+            return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
+        }
+        return ActivationResult.ACTED;
     }
 
     /** Raycasts blocks/fluids and pickable entities without looking through a blocking surface. */
@@ -219,14 +262,27 @@ final class SpellRuntime {
             || caster.serverLevel().getServer().isPvpAllowed() && caster.canHarmPlayer(other);
     }
 
-    /** Applies a vanilla timed effect without replacing stronger/longer effects forcibly. */
-    private boolean apply(
+    /**
+     * Prepares a vanilla timed effect without replacing stronger/longer effects forcibly.
+     *
+     * <p>
+     * Only the target's presence is validated. Whether the effect lands is decided by
+     * {@link LivingEntity#addEffect}: it fires {@code MobEffectEvent.Applicable} and declines when
+     * the target already has a stronger or longer instance. Checking that in advance would fire the
+     * event twice or duplicate vanilla's update rules, so the applied result decides the refund.
+     *
+     * @return the effect, or empty without a living target
+     */
+    private Optional<Effect> prepareTimedEffect(
         LivingEntity entity,
         net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect,
         int duration,
         int amplifier) {
-        return entity != null
-            && entity.addEffect(new MobEffectInstance(effect, duration, amplifier));
+        if (entity == null) {
+            return Optional.empty();
+        }
+        return Optional
+            .of(() -> entity.addEffect(new MobEffectInstance(effect, duration, amplifier)));
     }
 
     /** Refuses protected, unbreakable, unloaded, or inventory-bearing blocks before breaking. */
@@ -248,12 +304,20 @@ final class SpellRuntime {
     }
 
     /**
-     * Resolves one block through crushing/smelting, never applying a hard-coded yield multiplier.
+     * Prepares crushing or smelting one block, never applying a hard-coded yield multiplier.
+     *
+     * <p>
+     * Validation covers the break veto, the recipe output, and (for a smelted block that yields
+     * exactly one block item) the placement veto for the replacement. The effect removes the block
+     * and either places the replacement or drops the outputs.
+     *
+     * @return the effect, or empty when the block may not be processed
      */
-    private boolean processBlock(ServerPlayer player, BlockPos pos, boolean smelting) {
+    private Optional<Effect> prepareProcessBlock(
+        ServerPlayer player, BlockPos pos, boolean smelting) {
         ServerLevel level = player.serverLevel();
         if (!breakable(player, pos)) {
-            return false;
+            return Optional.empty();
         }
         BlockState state = level.getBlockState(pos);
         ItemStack offered = new ItemStack(state.getBlock().asItem());
@@ -262,7 +326,7 @@ final class SpellRuntime {
             : RitualProcessingRecipes.findOutput(
                 level, offered, CrushingRecipe.TYPE.get());
         if (smelting && result.isEmpty()) {
-            return false;
+            return Optional.empty();
         }
         List<ItemStack> drops = result.map(List::of)
             .orElseGet(
@@ -273,59 +337,75 @@ final class SpellRuntime {
                     null,
                     player,
                     player.getMainHandItem()));
-        BlockState replacement = null;
+        BlockState replacement;
         if (smelting
             && drops.size() == 1
             && drops.getFirst().getCount() == 1
             && drops.getFirst().getItem() instanceof BlockItem item) {
             replacement = item.getBlock().defaultBlockState();
             if (!placementAllowed(player, pos, replacement)) {
+                return Optional.empty();
+            }
+        } else {
+            replacement = null;
+        }
+        return Optional.of(() -> {
+            if (!level.removeBlock(pos, false)) {
                 return false;
             }
-        }
-        if (!level.removeBlock(pos, false)) {
-            return false;
-        }
-        if (replacement == null || !level.setBlock(pos, replacement, Block.UPDATE_ALL)) {
-            for (ItemStack drop : drops) {
-                Block.popResource(level, pos, drop);
+            if (replacement == null || !level.setBlock(pos, replacement, Block.UPDATE_ALL)) {
+                for (ItemStack drop : drops) {
+                    Block.popResource(level, pos, drop);
+                }
             }
-        }
-        level.levelEvent(2001, pos, Block.getId(state));
-        return true;
+            level.levelEvent(2001, pos, Block.getId(state));
+            return true;
+        });
     }
 
-    /** Smelts one dropped item or one target block, retaining recipe-defined output quantities. */
-    private boolean forge(ServerPlayer player, Target target) {
+    /**
+     * Prepares smelting one dropped item or one target block, retaining recipe-defined output
+     * quantities.
+     *
+     * @return the effect, or empty when nothing at the target smelts
+     */
+    private Optional<Effect> prepareForge(ServerPlayer player, Target target) {
         if (target.item() == null) {
-            return processBlock(player, target.block(), true);
+            return prepareProcessBlock(player, target.block(), true);
         }
         ItemEntity entity = target.item();
         var output = RitualProcessingRecipes.findOutput(
             player.serverLevel(), entity.getItem(), RecipeType.SMELTING);
         if (output.isEmpty()) {
-            return false;
+            return Optional.empty();
         }
-        ItemStack remainder = entity.getItem().copy();
-        remainder.shrink(1);
-        if (remainder.isEmpty()) {
-            entity.setItem(output.orElseThrow());
-        } else {
-            ItemEntity product = new ItemEntity(
-                player.serverLevel(),
-                entity.getX(),
-                entity.getY(),
-                entity.getZ(),
-                output.orElseThrow());
-            if (!player.serverLevel().addFreshEntity(product)) {
-                return false;
+        return Optional.of(() -> {
+            ItemStack remainder = entity.getItem().copy();
+            remainder.shrink(1);
+            if (remainder.isEmpty()) {
+                entity.setItem(output.orElseThrow());
+            } else {
+                ItemEntity product = new ItemEntity(
+                    player.serverLevel(),
+                    entity.getX(),
+                    entity.getY(),
+                    entity.getZ(),
+                    output.orElseThrow());
+                if (!player.serverLevel().addFreshEntity(product)) {
+                    return false;
+                }
+                entity.setItem(remainder);
             }
-            entity.setItem(remainder);
-        }
-        return true;
+            return true;
+        });
     }
 
-    /** Magical strike without vanilla lightning's unrelated fire/weather/transformation effects. */
+    /**
+     * Magical strike without vanilla lightning's unrelated fire/weather/transformation effects.
+     * Always valid: with no living target it is a visual strike at the aimed position.
+     *
+     * @return whether the target was damaged, or, without a target, whether the bolt appeared
+     */
     private boolean lightning(ServerPlayer player, Target target) {
         if (target.living() != null
             && !target.living()
@@ -344,30 +424,39 @@ final class SpellRuntime {
         return target.living() != null || visual;
     }
 
-    /** Applies an impulse instead of teleporting the entity or clearing its motion. */
-    private boolean push(ServerPlayer player, Target target) {
-        if (target.living() == null) {
-            return false;
+    /**
+     * Prepares an impulse instead of teleporting the entity or clearing its motion. The NeoForge
+     * knockback event is the permission check, so it is posted during validation and its adjusted
+     * strength and direction are what the effect applies.
+     *
+     * @return the effect, or empty without a living target or when knockback is vetoed
+     */
+    private Optional<Effect> preparePush(ServerPlayer player, Target target) {
+        LivingEntity living = target.living();
+        if (living == null) {
+            return Optional.empty();
         }
-        Vec3 direction = target.living().position().subtract(player.position());
+        Vec3 direction = living.position().subtract(player.position());
         if (direction.lengthSqr() == 0) {
             direction = player.getLookAngle();
         }
         direction = direction.normalize();
         var knockback = CommonHooks.onLivingKnockBack(
-            target.living(),
+            living,
             SpellConfig.IMPULSE.get().floatValue(),
             direction.x,
             direction.z);
         if (knockback.isCanceled() || knockback.getStrength() <= 0) {
-            return false;
+            return Optional.empty();
         }
         Vec3 impulse = new Vec3(knockback.getRatioX(), direction.y, knockback.getRatioZ())
             .normalize()
             .scale(knockback.getStrength());
-        target.living().push(impulse.x, impulse.y, impulse.z);
-        target.living().hurtMarked = true;
-        return true;
+        return Optional.of(() -> {
+            living.push(impulse.x, impulse.y, impulse.z);
+            living.hurtMarked = true;
+            return true;
+        });
     }
 
     /** Creates a server-owned field; particle delivery failure never repeats the action. */
@@ -394,10 +483,16 @@ final class SpellRuntime {
         return true;
     }
 
-    /** Places only an empty-space shell, never placing a block inside an entity's body. */
-    private boolean entomb(ServerPlayer player, LivingEntity target) {
+    /**
+     * Prepares an empty-space shell, never placing a block inside an entity's body. Every shell
+     * position must pass the placement veto; one vetoed position refuses the whole cast.
+     *
+     * @return the effect, or empty without a target, without any empty shell position, or when a
+     *         placement is vetoed; the effect reports whether any shell block was placed
+     */
+    private Optional<Effect> prepareEntomb(ServerPlayer player, LivingEntity target) {
         if (target == null) {
-            return false;
+            return Optional.empty();
         }
         ServerLevel level = player.serverLevel();
         AABB body = target.getBoundingBox();
@@ -417,38 +512,64 @@ final class SpellRuntime {
                 && level.isEmptyBlock(candidate)
                 && level.getEntities(null, new AABB(candidate)).isEmpty()) {
                 if (!placementAllowed(player, candidate, shell)) {
-                    return false;
+                    return Optional.empty();
                 }
                 positions.add(candidate.immutable());
             }
         }
-        for (BlockPos position : positions) {
-            level.setBlock(position, shell, Block.UPDATE_ALL);
-            level.scheduleTick(position, shell.getBlock(), SpellConfig.SHORT_DURATION.get());
+        if (positions.isEmpty()) {
+            return Optional.empty();
         }
-        return !positions.isEmpty();
+        return Optional.of(() -> {
+            boolean placed = false;
+            for (BlockPos position : positions) {
+                if (level.setBlock(position, shell, Block.UPDATE_ALL)) {
+                    level.scheduleTick(position, shell.getBlock(),
+                        SpellConfig.SHORT_DURATION.get());
+                    placed = true;
+                }
+            }
+            return placed;
+        });
     }
 
-    /** Reveals entities, including invisible ones, using the approved finite-duration outline. */
-    private boolean reveal(ServerPlayer player) {
+    /**
+     * Prepares revealing entities, including invisible ones, using the approved finite-duration
+     * outline.
+     *
+     * @return the effect, or empty when no other living entity is in range; the effect reports
+     *         whether any entity accepted the outline
+     */
+    private Optional<Effect> prepareReveal(ServerPlayer player) {
         int radius = SpellConfig.REVEAL_RADIUS.get();
-        boolean found = false;
-        for (LivingEntity entity : player.serverLevel()
+        List<LivingEntity> entities = player.serverLevel()
             .getEntitiesOfClass(
                 LivingEntity.class,
                 player.getBoundingBox().inflate(radius),
                 entity -> entity != player
-                    && entity.distanceToSqr(player) <= radius * radius)) {
-            found |= entity.addEffect(
-                new MobEffectInstance(
-                    MobEffects.GLOWING, SpellConfig.SHORT_DURATION.get()));
+                    && entity.distanceToSqr(player) <= radius * radius);
+        if (entities.isEmpty()) {
+            return Optional.empty();
         }
-        return found;
+        return Optional.of(() -> {
+            boolean found = false;
+            for (LivingEntity entity : entities) {
+                found |= entity.addEffect(
+                    new MobEffectInstance(
+                        MobEffects.GLOWING, SpellConfig.SHORT_DURATION.get()));
+            }
+            return found;
+        });
     }
 
-    /** Places an invisible no-drop light only in empty space, with saved scheduled expiry. */
-    private boolean radiance(ServerPlayer player, Target target) {
-        BlockPos pos = player.serverLevel().isEmptyBlock(target.block())
+    /**
+     * Prepares an invisible no-drop light only in empty space, with saved scheduled expiry.
+     *
+     * @return the effect, or empty when the light position is occupied, unloaded, or vetoed
+     */
+    private Optional<Effect> prepareRadiance(ServerPlayer player, Target target) {
+        ServerLevel level = player.serverLevel();
+        BlockPos pos = level.isEmptyBlock(target.block())
             ? target.block()
             : target.block().relative(target.face());
         BlockState light = SpellContent.LIGHT
@@ -457,50 +578,70 @@ final class SpellRuntime {
             .setValue(
                 net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL,
                 SpellConfig.LIGHT_LEVEL.get());
-        if (!player.serverLevel().hasChunkAt(pos)
-            || !player.serverLevel().isEmptyBlock(pos)
+        if (!level.hasChunkAt(pos)
+            || !level.isEmptyBlock(pos)
             || !placementAllowed(player, pos, light)) {
-            return false;
+            return Optional.empty();
         }
-        boolean placed = player.serverLevel().setBlock(pos, light, Block.UPDATE_ALL);
-        if (placed) {
-            player.serverLevel().scheduleTick(pos, light.getBlock(), SpellConfig.DURATION.get());
-        }
-        return placed;
-    }
-
-    /** Restores health only; equipment maintenance remains recipe/material-dependent. */
-    private boolean heal(LivingEntity target) {
-        if (target.getHealth() >= target.getMaxHealth()) {
-            return false;
-        }
-        target.heal(SpellConfig.HEAL.get().floatValue());
-        return true;
+        return Optional.of(() -> {
+            boolean placed = level.setBlock(pos, light, Block.UPDATE_ALL);
+            if (placed) {
+                level.scheduleTick(pos, light.getBlock(), SpellConfig.DURATION.get());
+            }
+            return placed;
+        });
     }
 
     /**
-     * Applies the standard base Growth's one extra tick opportunity to plants in its fixed layer.
+     * Prepares restoring health only; equipment maintenance remains recipe/material-dependent.
+     * {@link LivingEntity#heal} does not report a cancelled {@code LivingHealEvent}, so the effect
+     * compares health before and after.
+     *
+     * @return the effect, or empty when the target is already at full health
      */
-    private boolean grow(ServerPlayer player, BlockPos center, SpellEngine.Growth growth) {
+    private Optional<Effect> prepareHeal(LivingEntity target) {
+        if (target.getHealth() >= target.getMaxHealth()) {
+            return Optional.empty();
+        }
+        return Optional.of(() -> {
+            float before = target.getHealth();
+            target.heal(SpellConfig.HEAL.get().floatValue());
+            return target.getHealth() > before;
+        });
+    }
+
+    /**
+     * Prepares the standard base Growth's extra tick opportunities for plants in its fixed layer.
+     *
+     * <p>
+     * Validation collects every eligible plant in the 9x9 layer around the target; with none, the
+     * cast is refused before payment. The effect re-checks each position (another plant's random
+     * tick can change a neighbor) and applies imbalanced mortality or the fractional tick
+     * multiplier. Both are random, so a paid cast can still change nothing; the effect reports
+     * that, and the cast is refunded.
+     *
+     * @return the effect, or empty when no eligible plant is in range
+     */
+    private Optional<Effect> prepareGrowth(
+        ServerPlayer player, BlockPos center, SpellEngine.Growth growth) {
         ServerLevel level = player.serverLevel();
-        boolean affected = false;
+        List<BlockPos> plants = new ArrayList<>();
         for (BlockPos position : BlockPos.betweenClosed(center.offset(-4, 0, -4),
             center.offset(4, 0, 4))) {
-            if (!level.hasChunkAt(position) || !level.mayInteract(player, position)) {
-                continue;
+            if (growable(player, position)) {
+                plants.add(position.immutable());
             }
-            BlockState state = level.getBlockState(position);
-            Block block = state.getBlock();
-            boolean plant = block instanceof BushBlock
-                || block instanceof GrowingPlantBlock
-                || block instanceof CactusBlock
-                || block instanceof SugarCaneBlock
-                || block instanceof BambooStalkBlock
-                || block instanceof BambooSaplingBlock;
-            if (plant
-                && state.isRandomlyTicking()
-                && !state.hasBlockEntity()
-                && !state.is(GROWTH_EXCLUDED)) {
+        }
+        if (plants.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(() -> {
+            boolean affected = false;
+            for (BlockPos position : plants) {
+                if (!growable(player, position)) {
+                    continue;
+                }
+                Block block = level.getBlockState(position).getBlock();
                 if (!growth.balanced()
                     && level.random.nextDouble() < SpellConfig.PLANT_MORTALITY.get()) {
                     if (breakable(player, position)) {
@@ -519,21 +660,52 @@ final class SpellRuntime {
                     if (!current.is(block) || !current.isRandomlyTicking()) {
                         break;
                     }
-                    current.randomTick(level, position.immutable(), level.random);
+                    current.randomTick(level, position, level.random);
                     affected = true;
                 }
             }
-        }
-        return affected;
+            return affected;
+        });
     }
 
-    /** Delivers only what the FE receiver accepts, never spending energy on a refused target. */
-    private boolean energy(ServerLevel level, BlockPos pos, Direction face) {
-        if (!level.hasChunkAt(pos)) {
+    /**
+     * Whether Growth may act on one position: loaded, interactable, a randomly ticking plant
+     * without a block entity, and not in {@code technomagy:growth_excluded} (D48).
+     */
+    private boolean growable(ServerPlayer player, BlockPos position) {
+        ServerLevel level = player.serverLevel();
+        if (!level.hasChunkAt(position) || !level.mayInteract(player, position)) {
             return false;
         }
+        BlockState state = level.getBlockState(position);
+        Block block = state.getBlock();
+        boolean plant = block instanceof BushBlock
+            || block instanceof GrowingPlantBlock
+            || block instanceof CactusBlock
+            || block instanceof SugarCaneBlock
+            || block instanceof BambooStalkBlock
+            || block instanceof BambooSaplingBlock;
+        return plant
+            && state.isRandomlyTicking()
+            && !state.hasBlockEntity()
+            && !state.is(GROWTH_EXCLUDED);
+    }
+
+    /**
+     * Prepares delivering only what the FE receiver accepts. A simulated transfer validates that
+     * the receiver will take energy, so a refusing receiver is never charged for.
+     *
+     * @return the effect, or empty without a receiver that currently accepts energy
+     */
+    private Optional<Effect> prepareEnergy(ServerLevel level, BlockPos pos, Direction face) {
+        if (!level.hasChunkAt(pos)) {
+            return Optional.empty();
+        }
         var receiver = level.getCapability(Capabilities.EnergyStorage.BLOCK, pos, face);
-        return receiver != null && receiver.receiveEnergy(SpellConfig.FE.get(), false) > 0;
+        if (receiver == null || receiver.receiveEnergy(SpellConfig.FE.get(), true) <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(() -> receiver.receiveEnergy(SpellConfig.FE.get(), false) > 0);
     }
 
     /**
@@ -696,6 +868,21 @@ final class SpellRuntime {
 
     /** Runtime-owned mist geometry and expiry in level game ticks. */
     private record Mist(ServerLevel level, UUID owner, Vec3 center, int radius, long expires) {
+    }
+
+    /**
+     * A validated spell effect, applied only after the caster has paid. Applying it may still
+     * produce nothing when a decision made only at application time (an event, a refused placement,
+     * a random roll) prevents it; that case is refunded.
+     */
+    @FunctionalInterface
+    private interface Effect {
+        /**
+         * Changes the world.
+         *
+         * @return whether the effect actually happened
+         */
+        boolean apply();
     }
 
     /**

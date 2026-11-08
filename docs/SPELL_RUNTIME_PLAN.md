@@ -20,12 +20,11 @@ remain authoritative. All numeric values below would be server-configurable.
 - Sky's Ley Lines is a hard dependency, pinned to Maven artifact
   `zone.moddev.mc.skysleylines:SkysLeyLines:0.5.6.121012` from moddev.zone.
   It is required on both client and server.
-- Sky's Ley Lines will supply actual power; its integration plan is still in
-  progress. No power charging in this first casting implementation. Do not
-  invent charging or collection rules. D70 now specifies automatic per-player
+- Sky's Ley Lines supplies actual power. Casts charge the caster's personal
+  pools (see Payment below). Do not invent collection rules. D70 now specifies automatic per-player
   pool setup on join: six elements, capacity 10 each, initially 3, no Raw pool.
-  Existing pools are preserved. Automatic recharge remains disabled until the
-  first casting apparatus; the unlock implementation and recharge rate are pending.
+  Existing pools are preserved. Having a focus unlocks recharge permanently
+  (D77).
 - Use Ability Core alpha.42. No GitHub Packages credentials are configured here;
   approved fallback is its exact public GitHub release artifact, resolved through
   a pinned repository declaration rather than committing a binary into this repo.
@@ -107,8 +106,7 @@ Server tuning is stored per world in
 `serverconfig/technomagy-spells-server.toml`. It covers reach, durations, mist
 and Reveal radii, damage, impulse, Ward capacity, healing, armor reduction,
 FE delivery, status amplifiers, Radiance light level, Growth multiplier terms,
-and imbalanced Growth mortality. No power is consumed in this implementation;
-Sky's Ley Lines payment remains deferred by D70.
+and imbalanced Growth mortality.
 
 Protection preflight rejects unloaded/out-of-height/protected blocks,
 unbreakable blocks, and block entities. Erode/Forge never discard inventories.
@@ -117,6 +115,41 @@ server/level-owned and cleared on lifecycle exit. Leach uses a removable
 transient attribute modifier; Shroud uses an ordinary synced timed status
 rather than writing a persistent silence flag. Temporary blocks have no drops
 and expire through saved scheduled ticks.
+
+### Payment
+
+Server option `payment.enabled` (default `true`, D76) makes each cast charge the
+caster's personal elemental pools. Creative-mode casters are never charged.
+Costs are whole units configured per spell
+under `[payment.costs.<spell>]`, one value per flavor (0 to 64). They default to
+the spell's input stream: one unit of each base element (Erode is one Earth and
+one Air), Growth one Water, Light, and Earth, and Life & death one Light and one
+Dark. A spell whose six costs are all zero is reported as an error when the
+config loads and is refused while payment is enabled. It is never cast for free.
+
+Each handler first validates its target without changing the world. An invalid
+cast is refused before any charge. The caster is then charged, and only then is
+the effect applied. Ley Lines 0.5.6 spends one currency per call, and each spend
+can be vetoed by other mods, so `SpellPayment` checks every pool first, spends
+them in order, and returns earlier spends if a later one fails. Some outcomes are
+only decided when the effect is applied: a cancelled damage or heal event, a
+refused block or entity, or a Growth roll with no extra ticks. If the effect then
+does nothing, the charge is refunded and the cast is refused. Ley Lines can also
+veto a return, and it will not raise a balance above capacity. When a return
+fails, an error names the player, pool, and units.
+
+### Recharge
+
+The first time a player has a focus anywhere in their inventory, recharge
+unlocks permanently (D77). The unlock is saved in the
+`technomagy:recharge_unlocked` attachment and kept through death. Every
+`recharge.intervalTicks` (default 10) server ticks, each online unlocked player
+who is alive and not spectating
+gains `recharge.unitsPerPulse` (default 1) units in one random pool that is
+active and below capacity. The gain is clamped to the remaining room, and nothing
+happens when every pool is full.
+
+### Verification
 
 D74 verification: `build` and all 26 dedicated-server GameTests passed with
 Core alpha.42 and Hotbar alpha.56 installed. Coverage includes focus casting
@@ -130,9 +163,15 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 27 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 35 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
-Ward/Steam interaction, and the actual focus air/block-use paths. The task
+Ward/Steam interaction, and the actual focus air/block-use paths. Five payment
+checks cover the default and configured costs, refusing a shortfall or invalid
+target without a charge, rolling back a vetoed spend, refunding an effect cancelled
+at application time, refusing an all-zero cost, and exempting creative
+casters. Two recharge checks
+cover the permanent focus unlock, skipping dead players, and pool selection
+with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime
 fixtures and UI instrumentation are excluded from the production JAR.
 
@@ -150,4 +189,5 @@ shader-pack compatibility.
 The accepted first-cast scope remains distinct from later ritual variants:
 material-backed equipment repair, organic decomposition recipes, reagent-based
 ore leaching, selected-resource scanning, ongoing totem execution, player stream
-editing, and Ley Lines charging are not implemented by these first handlers.
+editing, and charging from Ley Lines nexus (ambient) power are not implemented
+by these first handlers.

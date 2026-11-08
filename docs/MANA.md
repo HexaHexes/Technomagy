@@ -38,14 +38,16 @@ severity is reported separately from probability. No executor, payment,
 particle rendering, or world mutation is invoked by evaluation/preparation.
 The separate `spell` package now supplies sixteen approved first player-cast
 handlers through Ability Core; see [SPELL_RUNTIME_PLAN.md](SPELL_RUNTIME_PLAN.md).
-Power charging awaits the upcoming Sky's Ley Lines integration.
+Casts charge the caster's personal pools unless the server disables payment.
 
 D70's personal reserves are now initialized automatically on login through
 LeyLines: six elemental pools, each with capacity 10 and starting balance 3.
 Raw has no player pool. Existing pools retain saved balances and settings;
-reconnecting does not refill them. Automatic recharge is disabled initially.
-The first casting apparatus will unlock recharge; its rate and unlock wiring
-remain pending. Spell payment is not connected to these pools yet.
+reconnecting does not refill them. Having a casting focus unlocks recharge
+permanently (D77): one unit every 10 ticks goes to a random active pool that
+is not full. Spell payment is on by default (`payment.enabled` in
+`technomagy-spells-server.toml`). It charges per-spell configurable costs,
+validating before charging and refunding casts that turn out ineffective. See [SPELL_RUNTIME_PLAN.md](SPELL_RUNTIME_PLAN.md#payment).
 
 Six dependency-free suites run with `./gradlew pureTest`, are required by
 `./gradlew check`, and can also run with `bash scripts/check_spell_heuristics.sh`.
@@ -76,14 +78,21 @@ migration and connecting the engine to prism block entities are separate work.
 
 ## Personal pool HUD
 
-D75 displays six personal elemental pools at the bottom right during ordinary
-play, grouped into two segmented bars: Earth/Air/Fire/Water and Light/Dark.
-Each segment has its own fill and balance/capacity. The complete HUD is at most 160 scaled pixels wide and shrinks to fit the
-right-hand gutter beside the vanilla hotbar, staying eight pixels from the
-right and bottom edges. Names and amounts occupy separate lines. There is no Raw bar and no requirement to hold a focus. Labels show actual
-balance/capacity; inactive pools are gray and labeled. Fill is clamped without
-hiding balances above a lowered capacity. Open screens, F1, spectators, and
-incomplete pool data hide the HUD.
+D75 displays six personal elemental pools as three split glass orbs at the
+bottom right: **Earth/Air**, **Fire/Water**, and **Light/Dark**. Each orb has two
+independent chambers that fill from the bottom, easing to new levels over
+240 milliseconds. Labels show each element's name and exact balance/capacity
+immediately; inactive pools have gray text and empty chambers. Visual fill is
+clamped at capacity without hiding excess balances in the labels.
+
+The group occupies at most 160 scaled pixels in the gutter beside the vanilla
+hotbar, anchored eight pixels from the right and bottom edges. With enough
+space, the orbs sit side by side with labels below; narrower gutters stack
+them vertically with labels beside them. If the stack cannot fit, the HUD is
+hidden rather than overlapping the hotbar. All captions share one text scale.
+Light is eggshell white and Dark uses the accepted violet highlight for
+contrast against the glass. There is no Raw orb and no requirement to hold a
+focus. Open screens, F1, spectators, and incomplete pool data hide the HUD.
 
 `ManaPoolSnapshot` carries six fixed entries in `ManaType.FLAVORS` order.
 `ManaPoolSync` samples server-owned LeyLines pools after player ticks and sends

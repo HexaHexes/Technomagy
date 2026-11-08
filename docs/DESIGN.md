@@ -683,11 +683,9 @@ plan remains in progress. On joining a world, each player automatically receives
 six elemental pools (Light, Dark, Earth, Air, Fire, Water), each with capacity
 10 units and an initial balance of 3 units. There is no Raw player pool: Raw
 cannot be used to cast. Existing pools retain their saved balances and settings
-on subsequent joins. Automatic recharge is disabled initially; it becomes
-available when the player makes their first casting apparatus. The apparatus
-unlock mechanism and recharge rate remain to be specified before implementation.
-This first player-cast implementation still does not charge power; charging
-will be connected once the remaining Ley Lines integration contract is specified.
+on subsequent joins. Recharge is disabled initially; it becomes available once
+the player has a casting focus, as specified by D77. Casting charges these pools
+as specified by D76.
 
 **D71.** Craft one spell focus from three sticks on a diagonal, with one
 crystal of any of the six flavors directly above and another directly below
@@ -739,8 +737,8 @@ paths require a living, non-spectating player holding a focus in either hand;
 the requested spell need not match legacy item selection or the currently
 selected slot when activating a different slot directly. Right-click uses the
 same server activation pipeline. The separate `.` machinery element selector
-(D73), including Raw, remains; Raw still cannot be cast. Spell charging remains
-pending the atomic multi-currency payment contract.
+(D73), including Raw, remains; Raw still cannot be cast. Spell charging follows
+D76.
 
 **D75.** Show the player's six personal elemental pools (D70) as three split
 glass orbs in the bottom-right HUD. Pair Earth with Air, Fire with Water, and
@@ -767,6 +765,45 @@ after player ticks when displayed data changes, and initially for a new player
 instance. Client display state clears on disconnect; server sync caches clear
 on logout and server shutdown. This is read-only display synchronization,
 not a new reserve or a client-side authority over power.
+
+**D76.** Player casts charge the caster's personal elemental pools (D70).
+Charging is controlled by the server option `payment.enabled`, which defaults
+to **on** now that recharge exists (D77). Players in creative mode are never
+charged.
+
+Costs are whole units (D47), configured per spell in the spell server config as
+one section per spell with one value per flavor (0 to 64). Each spell's default
+is its input stream: one unit of each base element, so Growth costs one Water,
+Light, and Earth, and Life & death one Light and one Dark. Raw is never charged.
+A spell whose six costs are all zero is invalid: it is reported when the config
+loads and refused while charging is enabled, never cast for free.
+
+Each cast is **validated, then charged, then applied**. Validation checks the
+target and every protection, placement, recipe, and receiver condition that can
+be checked without changing the world; an invalid cast is refused without a
+charge. Sky's Ley Lines 0.5.6 spends one currency per call and lets other mods
+veto each spend, so Technomagy approximates an atomic multi-currency payment:
+it checks every costed pool first, spends them in flavor order, and if a later
+spend fails returns the earlier ones. If a validated effect still does nothing
+when applied (an event cancels it, placement is refused, or a random roll has no
+result), the charge is refunded and the cast is refused. No effect is paid for
+without happening. Ley Lines may also refuse a return, including restoring a
+balance above capacity; such a failure is reported as an error naming the
+player, pool, and units. A true atomic multi-currency spend in Ley Lines would
+supersede the rollback.
+
+**D77.** Personal pool recharge (D70) unlocks **permanently** the first time a
+player has a `technomagy:spell_focus` anywhere in their inventory, by any means
+(crafted, picked up, given, creative). The unlock is saved with the player in the
+`technomagy:recharge_unlocked` attachment and kept through death; losing the
+focus does not relock it. While unlocked, online, alive, and not spectating, the
+player gains **1 unit
+every 10 game ticks** in one pool chosen uniformly at random from the pools that
+are active and below capacity, clamped to the remaining room. When every pool is
+full or inactive, the pulse does nothing. The interval and units per pulse are
+server-configurable. Offline, dead, and spectating players neither recharge
+nor unlock. Ley Lines' fixed per-pool
+automatic rate stays disabled, since it cannot choose a random element.
 
 ## Integration foundations
 
