@@ -84,9 +84,7 @@ public record ManaPoolSnapshot(List<Bar> bars) implements CustomPacketPayload {
     public static ManaPoolSnapshot from(PlayerPowerService.Snapshot snapshot) {
         Objects.requireNonNull(snapshot);
         return new ManaPoolSnapshot(ManaType.FLAVORS.stream().map(element -> {
-            var id = ResourceLocation.fromNamespaceAndPath("technomagy",
-                element.getSerializedName());
-            var pool = snapshot.pools().get(id);
+            var pool = snapshot.pools().get(PlayerManaPools.currency(element));
             return pool == null
                 ? new Bar(0, 0, false, false)
                 : new Bar(pool.balance(), pool.settings().capacity(), true, pool.active());

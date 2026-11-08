@@ -33,8 +33,8 @@ tasks.named('runGameTestServer').configure {
         }
         def logText = log.getText('UTF-8')
         def summary = logText =~ /All (\d+) required tests passed/
-        if (!summary.find() || (summary.group(1) as int) != 27) {
-            throw new GradleException('Expected all 27 spell GameTests to pass; inspect ' + log)
+        if (!summary.find() || (summary.group(1) as int) != 35) {
+            throw new GradleException('Expected all 35 spell GameTests to pass; inspect ' + log)
         }
         if (logText =~ /(?m)^.*\/(ERROR|FATAL)\].*$/) {
             throw new GradleException('Spell GameTest emitted ERROR/FATAL records; inspect ' + log)

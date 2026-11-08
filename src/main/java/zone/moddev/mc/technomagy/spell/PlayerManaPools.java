@@ -14,6 +14,7 @@ import zone.moddev.mc.skysleylines.api.PlayerPowerService;
 import zone.moddev.mc.skysleylines.api.PowerRequest;
 
 import zone.moddev.mc.technomagy.Technomagy;
+import zone.moddev.mc.technomagy.mana.ManaType;
 
 /**
  * Creates the six personal elemental reserves on login under D70's approved pool policy. All access
@@ -29,6 +30,35 @@ final class PlayerManaPools {
     private PlayerManaPools() {
     }
 
+    /**
+     * Returns the LeyLines currency backing an elemental flavor's personal pool.
+     *
+     * @param element
+     *            one of {@link ManaType#FLAVORS}
+     * @return the registered {@code technomagy:<flavor>} currency
+     * @throws IllegalArgumentException
+     *             for {@link ManaType#RAW}, which has no player pool (D70)
+     */
+    static ResourceLocation currency(ManaType element) {
+        if (element == ManaType.RAW) {
+            throw new IllegalArgumentException("Raw has no personal pool (D70)");
+        }
+        return ResourceLocation.fromNamespaceAndPath(Technomagy.MODID, element.getSerializedName());
+    }
+
+    /**
+     * Identifies pool setup and recharge changes in Ley Lines receipts.
+     *
+     * @param player
+     *            the pool owner
+     * @return the {@code technomagy:player_pools} consumer acting for that player
+     */
+    static PowerRequest.Consumer consumer(UUID player) {
+        return new PowerRequest.Consumer(
+            ResourceLocation.fromNamespaceAndPath(Technomagy.MODID, "player_pools"),
+            Optional.of(player));
+    }
+
     /** Creates missing pools for a joining server player, including players in existing worlds. */
     static void joined(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -41,8 +71,8 @@ final class PlayerManaPools {
      *
      * <p>
      * Inspecting persisted entries, rather than balance, prevents reconnects from refilling an
-     * exhausted pool or disabling recharge later unlocked by an apparatus. Raw is deliberately
-     * excluded. Null automatic rate disables recharge until that progression is implemented.
+     * exhausted pool or overwriting settings changed since. Raw is deliberately excluded. Ley
+     * Lines' automatic rate stays null: {@link PoolRecharge} recharges a random pool instead (D77).
      * LeyLines configuration and seeding are separate commits: a rejected operation is reported
      * explicitly rather than bypassing protection hooks or claiming initialization succeeded.
      *
@@ -55,9 +85,7 @@ final class PlayerManaPools {
      */
     static void initialize(PlayerPowerService power, UUID player) {
         var existing = power.inspect(player).pools();
-        var consumer = new PowerRequest.Consumer(
-            ResourceLocation.fromNamespaceAndPath(Technomagy.MODID, "player_pools"),
-            Optional.of(player));
+        var consumer = consumer(player);
         for (var element : ELEMENTS) {
             if (existing.containsKey(element)) {
                 continue;

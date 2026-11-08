@@ -2,6 +2,7 @@ package zone.moddev.mc.technomagy.spell;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -9,6 +10,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
@@ -26,16 +28,20 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.energy.IEnergyStorage;
+import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 import org.bitwisemadness.abilitycore.AbilityCore;
+import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
+import org.bitwisemadness.abilitycore.api.ActivationResult;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 
 import zone.moddev.mc.skysleylines.api.LeyLinesApi;
+import zone.moddev.mc.skysleylines.api.PlayerPowerEvent;
 import zone.moddev.mc.skysleylines.api.PlayerPowerService;
 import zone.moddev.mc.skysleylines.api.PowerRequest;
 
@@ -153,7 +159,7 @@ public final class SpellGameTests {
      * This test-only setup retains the login event and snapshot sender rather than disabling them;
      * it does not simulate a client consuming or rendering those packets.
      */
-    private static ServerPlayer connectedPlayer(GameTestHelper helper) {
+    private static ServerPlayer connectedPlayer(GameTestHelper helper, boolean creative) {
         var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(
             new com.mojang.authlib.GameProfile(UUID.randomUUID(), "test-mock-player"), false);
         var player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
@@ -165,7 +171,7 @@ public final class SpellGameTests {
 
             @Override
             public boolean isCreative() {
-                return true;
+                return creative;
             }
         };
         var connection = new net.minecraft.network.Connection(
@@ -181,9 +187,17 @@ public final class SpellGameTests {
         return player;
     }
 
-    /** Creates a real mock-server connection and an actually selected held focus. */
+    /** Creates a creative caster with a real mock-server connection and a selected held focus. */
     private static ServerPlayer player(GameTestHelper helper, PlayerSpell spell) {
-        ServerPlayer player = connectedPlayer(helper);
+        return player(helper, spell, true);
+    }
+
+    /**
+     * Creates a caster with a real mock-server connection and an actually selected held focus.
+     * Creative casters are never charged (D76), so payment checks use survival casters.
+     */
+    private static ServerPlayer player(GameTestHelper helper, PlayerSpell spell, boolean creative) {
+        ServerPlayer player = connectedPlayer(helper, creative);
         Vec3 position = helper.absoluteVec(new Vec3(7.5, 1, 2.5));
         player.moveTo(position.x, position.y, position.z, 0, 0);
         ItemStack focus = new ItemStack(SpellContent.FOCUS.get());
@@ -191,7 +205,22 @@ public final class SpellGameTests {
         player.setData(BarStateAttachments.BAR_STATE,
             bar.withAssignment(bar.selectedSlot(), spell.id()));
         player.setItemInHand(InteractionHand.MAIN_HAND, focus);
+        fillPools(helper, player, 10);
         return player;
+    }
+
+    /**
+     * Sets all six personal pools to one balance. Effect tests start full so they pass whether or
+     * not the server enables payment (D76).
+     */
+    private static void fillPools(GameTestHelper helper, ServerPlayer player, long units) {
+        var power = LeyLinesApi.playerPower(helper.getLevel().getServer());
+        PlayerManaPools.initialize(power, player.getUUID());
+        for (ManaType element : ManaType.FLAVORS) {
+            helper.assertTrue(power.setBalance(player.getUUID(), PlayerManaPools.currency(element),
+                units, PlayerManaPools.consumer(player.getUUID())).succeeded(),
+                "Could not set the test caster's " + element + " pool");
+        }
     }
 
     /** Executes the registered Ability Core pipeline and rejects any reported refusal. */
@@ -628,6 +657,270 @@ public final class SpellGameTests {
         player.setHealth(10);
         SpellContent.FOCUS.get().use(h.getLevel(), player, InteractionHand.MAIN_HAND);
         h.assertTrue(player.getHealth() == 14, "Focus air-use did not cast Mend");
+        h.succeed();
+    }
+
+    /** Payment charges Mend's stream-derived default, then a configured override (D70). */
+    @GameTest(template = "empty")
+    public static void paymentChargesConfiguredCost(GameTestHelper h) {
+        ServerPlayer player = paidPlayer(h);
+        withPayment(() -> {
+            player.setHealth(10);
+            cast(h, player, PlayerSpell.MEND);
+            assertBalances(h, player, "Default Mend cost must be one Water and one Light",
+                3, 3, 3, 2, 2, 3);
+            var earth = SpellConfig.COSTS.get(PlayerSpell.MEND).get(ManaType.EARTH);
+            int previous = earth.get();
+            earth.set(2);
+            try {
+                player.setHealth(10);
+                cast(h, player, PlayerSpell.MEND);
+            } finally {
+                earth.set(previous);
+            }
+            assertBalances(h, player, "Configured Earth cost was not charged",
+                3, 1, 3, 1, 1, 3);
+        });
+        h.succeed();
+    }
+
+    /** Shortfalls and invalid targets are refused before any pool changes. */
+    @GameTest(template = "empty")
+    public static void paymentRefusesShortfall(GameTestHelper h) {
+        ServerPlayer player = paidPlayer(h);
+        var power = LeyLinesApi.playerPower(h.getLevel().getServer());
+        h.assertTrue(power.setBalance(player.getUUID(), Technomagy.LIGHT, 0,
+            new PowerRequest.Consumer(Technomagy.LIGHT)).succeeded(), "Could not drain Light");
+        withPayment(() -> {
+            player.setHealth(10);
+            var result = run(player, PlayerSpell.MEND);
+            h.assertTrue(result.outcome() == ActivationOutcome.REFUSED_UNAFFORDABLE,
+                "Unaffordable Mend was not refused as unaffordable: " + result);
+            h.assertTrue(player.getHealth() == 10, "Unaffordable Mend still healed");
+            assertBalances(h, player, "A refused shortfall changed a pool", 3, 3, 3, 3, 0, 3);
+            player.setHealth(player.getMaxHealth());
+            var invalid = run(player, PlayerSpell.SHROUD);
+            h.assertTrue(invalid.isSuccess(), "Affordable Shroud was refused: " + invalid);
+            var full = run(player, PlayerSpell.MEND);
+            h.assertTrue(full.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
+                "Mend at full health was not an invalid target: " + full);
+            assertBalances(h, player, "Only the successful Shroud may be charged",
+                3, 3, 2, 3, 0, 2);
+        });
+        h.succeed();
+    }
+
+    /** A spend vetoed partway through returns the pools already charged. */
+    @GameTest(template = "empty")
+    public static void paymentRollsBackVetoedSpend(GameTestHelper h) {
+        ServerPlayer player = paidPlayer(h);
+        withPayment(() -> {
+            player.setHealth(10);
+            PaymentVetoes.LIGHT_SPEND.set(player.getUUID());
+            ActivationResultHolder holder = new ActivationResultHolder();
+            try {
+                holder.result = run(player, PlayerSpell.MEND);
+            } finally {
+                PaymentVetoes.LIGHT_SPEND.set(null);
+            }
+            h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_RESTRICTED,
+                "Vetoed payment was not refused as restricted: " + holder.result);
+            h.assertTrue(player.getHealth() == 10, "Vetoed payment still healed");
+            assertBalances(h, player, "Water was not rolled back after the Light veto",
+                3, 3, 3, 3, 3, 3);
+        });
+        h.succeed();
+    }
+
+    /** A validated effect that does nothing at application time is refunded. */
+    @GameTest(template = "empty")
+    public static void paymentRefundsIneffectiveCast(GameTestHelper h) {
+        ServerPlayer player = paidPlayer(h);
+        withPayment(() -> {
+            player.setHealth(10);
+            PaymentVetoes.HEAL.set(player.getUUID());
+            ActivationResultHolder holder = new ActivationResultHolder();
+            try {
+                holder.result = run(player, PlayerSpell.MEND);
+            } finally {
+                PaymentVetoes.HEAL.set(null);
+            }
+            h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
+                "Cancelled heal was not refused: " + holder.result);
+            h.assertTrue(player.getHealth() == 10, "Cancelled heal changed health");
+            assertBalances(h, player, "Ineffective Mend was not refunded", 3, 3, 3, 3, 3, 3);
+        });
+        h.succeed();
+    }
+
+    /** A spell configured to cost nothing is refused rather than cast for free. */
+    @GameTest(template = "empty")
+    public static void paymentRefusesZeroCost(GameTestHelper h) {
+        ServerPlayer player = paidPlayer(h);
+        var costs = SpellConfig.COSTS.get(PlayerSpell.MEND);
+        var previous = new java.util.EnumMap<ManaType, Integer>(ManaType.class);
+        costs.forEach((element, value) -> previous.put(element, value.get()));
+        withPayment(() -> {
+            costs.values().forEach(value -> value.set(0));
+            ActivationResultHolder holder = new ActivationResultHolder();
+            try {
+                player.setHealth(10);
+                holder.result = run(player, PlayerSpell.MEND);
+            } finally {
+                previous.forEach((element, units) -> costs.get(element).set(units));
+            }
+            h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_UNAVAILABLE,
+                "Zero-cost Mend was not refused: " + holder.result);
+            h.assertTrue(player.getHealth() == 10, "Zero-cost Mend still healed");
+            assertBalances(h, player, "Zero-cost refusal changed a pool", 3, 3, 3, 3, 3, 3);
+        });
+        h.succeed();
+    }
+
+    /** Creative casters cast without being charged (D76). */
+    @GameTest(template = "empty")
+    public static void paymentSkipsCreative(GameTestHelper h) {
+        ServerPlayer player = player(h, PlayerSpell.MEND, true);
+        fillPools(h, player, 3);
+        withPayment(() -> {
+            player.setHealth(10);
+            cast(h, player, PlayerSpell.MEND);
+            h.assertTrue(player.getHealth() > 10, "Creative Mend did not heal");
+            assertBalances(h, player, "A creative caster was charged", 3, 3, 3, 3, 3, 3);
+        });
+        h.succeed();
+    }
+
+    /** Creates a survival, focus-holding caster with 3/10 pools and no target in view. */
+    private static ServerPlayer paidPlayer(GameTestHelper h) {
+        ServerPlayer player = player(h, PlayerSpell.MEND, false);
+        fillPools(h, player, 3);
+        return player;
+    }
+
+    /**
+     * Enables payment for one synchronous test body and restores the previous setting. GameTests
+     * share the server config, so the body must not schedule casts for later ticks.
+     */
+    private static void withPayment(Runnable body) {
+        boolean previous = SpellConfig.PAYMENT_ENABLED.get();
+        SpellConfig.PAYMENT_ENABLED.set(true);
+        try {
+            body.run();
+        } finally {
+            SpellConfig.PAYMENT_ENABLED.set(previous);
+        }
+    }
+
+    /** Runs one cast through Ability Core's real pipeline and returns its result. */
+    private static ActivationResult run(ServerPlayer player, PlayerSpell spell) {
+        return AbilityCore.PIPELINE.run(
+            ActivationRequest.of(spell.id(), ActivationSource.NATIVE_ADAPTER), player);
+    }
+
+    /** Asserts the player's six balances, given in {@link ManaType#FLAVORS} order. */
+    private static void assertBalances(GameTestHelper h, ServerPlayer player, String message,
+        long fire, long earth, long air, long water, long light, long dark) {
+        var pools = LeyLinesApi.playerPower(h.getLevel().getServer())
+            .inspect(player.getUUID()).pools();
+        long[] expected = {fire, earth, air, water, light, dark};
+        for (int index = 0; index < expected.length; index++) {
+            var element = ManaType.FLAVORS.get(index);
+            long actual = pools.get(PlayerManaPools.currency(element)).balance();
+            h.assertTrue(actual == expected[index],
+                message + ": " + element + " is " + actual + ", expected " + expected[index]);
+        }
+    }
+
+    /** Captures a result assigned inside try/finally for assertion afterward. */
+    private static final class ActivationResultHolder {
+        private ActivationResult result;
+    }
+
+    /**
+     * Test-only third-party vetoes. Each targets one player UUID and is cleared by the test that
+     * set it, so other GameTests are unaffected.
+     */
+    @EventBusSubscriber(modid = "technomagy")
+    public static final class PaymentVetoes {
+        static final AtomicReference<UUID> LIGHT_SPEND = new AtomicReference<>();
+        static final AtomicReference<UUID> HEAL = new AtomicReference<>();
+
+        private PaymentVetoes() {
+        }
+
+        /** Cancels the flagged player's Light spend, after Water has already been spent. */
+        @SubscribeEvent
+        public static void spend(PlayerPowerEvent.Pre event) {
+            UUID player = LIGHT_SPEND.get();
+            var receipt = event.receipt();
+            if (player != null
+                && receipt.operation() == PlayerPowerService.Operation.SPEND
+                && receipt.currency().equals(Technomagy.LIGHT)
+                && receipt.changes().containsKey(player)) {
+                event.setCanceled(true);
+            }
+        }
+
+        /** Cancels healing of the flagged entity at application time. */
+        @SubscribeEvent
+        public static void heal(LivingHealEvent event) {
+            UUID entity = HEAL.get();
+            if (entity != null && event.getEntity().getUUID().equals(entity)) {
+                event.setCanceled(true);
+            }
+        }
+    }
+
+    /** Having a focus unlocks recharge permanently; each pulse adds one unit (D77). */
+    @GameTest(template = "empty")
+    public static void rechargeUnlocksWithFocus(GameTestHelper h) {
+        var power = LeyLinesApi.playerPower(h.getLevel().getServer());
+        ServerPlayer player = connectedPlayer(h, false);
+        player.getInventory().clearContent();
+        player.setData(PoolRecharge.UNLOCKED, false);
+        fillPools(h, player, 3);
+        h.assertTrue(!PoolRecharge.unlock(player) && !player.getData(PoolRecharge.UNLOCKED),
+            "Recharge unlocked without a focus");
+        player.getInventory().add(new ItemStack(SpellContent.FOCUS.get()));
+        h.assertTrue(PoolRecharge.unlock(player) && player.getData(PoolRecharge.UNLOCKED),
+            "A focus in the inventory did not unlock recharge");
+        player.getInventory().clearContent();
+        h.assertTrue(PoolRecharge.unlock(player), "Losing the focus relocked recharge");
+        player.setHealth(0);
+        h.assertTrue(PoolRecharge.recharge(power, player, 1) == null,
+            "A dead player recharged");
+        player.setHealth(player.getMaxHealth());
+        var chosen = PoolRecharge.recharge(power, player, 1);
+        h.assertTrue(chosen != null, "A pulse with room in every pool recharged nothing");
+        long total = power.inspect(player.getUUID()).pools().values().stream()
+            .mapToLong(PlayerPowerService.Pool::balance).sum();
+        h.assertTrue(total == 19, "A pulse must add exactly one unit, total is " + total);
+        h.assertTrue(power.inspect(player.getUUID()).pools().get(chosen).balance() == 4,
+            "The reported pool was not the one recharged");
+        h.succeed();
+    }
+
+    /** Pulses pick only active, non-full pools and clamp to the remaining room (D77). */
+    @GameTest(template = "empty")
+    public static void rechargeSkipsFullPools(GameTestHelper h) {
+        var power = LeyLinesApi.playerPower(h.getLevel().getServer());
+        ServerPlayer player = connectedPlayer(h, false);
+        fillPools(h, player, 10);
+        var consumer = PlayerManaPools.consumer(player.getUUID());
+        h.assertTrue(power.setBalance(player.getUUID(), Technomagy.WATER, 9, consumer).succeeded()
+            && power.setBalance(player.getUUID(), Technomagy.LIGHT, 0, consumer).succeeded()
+            && power.configure(player.getUUID(), Technomagy.LIGHT,
+                new PlayerPowerService.Settings(false, 10, null), consumer).succeeded(),
+            "Could not prepare the test pools");
+        var random = RandomSource.create(7);
+        for (int pulse = 0; pulse < 8; pulse++) {
+            var chosen = PoolRecharge.pulse(power, player, random, 5);
+            h.assertTrue(pulse == 0 ? Technomagy.WATER.equals(chosen) : chosen == null,
+                "Pulse " + pulse + " chose " + chosen);
+        }
+        assertBalances(h, player, "Recharge overfilled or touched an inactive pool",
+            10, 10, 10, 10, 0, 10);
         h.succeed();
     }
 }
