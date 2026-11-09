@@ -9,8 +9,8 @@ remain authoritative. All numeric values below would be server-configurable.
 - `technomagy:spell_focus` is a non-stackable casting device. Under D74,
   right-click casts the active Ability Hotbar slot; its management menu owns
   spell selection. Hotbar activation keys also work while holding a focus.
-- Ability Hotbar alpha.56 is required on both sides, pinned to its public GitHub
-  release artifact alongside Core alpha.42. The server validates the held item,
+- Ability Hotbar alpha.88 is required on both sides, pinned to its public GitHub
+  release artifact alongside Core 1.0.0. The server validates the held item,
   target and range; each cast is one spell, with timed effects allowed to overlap.
   Clients send intent only.
 - Register the fifteen executable spell actions plus life-and-death in Ability
@@ -25,7 +25,7 @@ remain authoritative. All numeric values below would be server-configurable.
   pool setup on join: six elements, capacity 10 each, initially 3, no Raw pool.
   Existing pools are preserved. Having a focus unlocks recharge permanently
   (D77).
-- Use Ability Core alpha.42. No GitHub Packages credentials are configured here;
+- Use Ability Core 1.0.0. No GitHub Packages credentials are configured here;
   approved fallback is its exact public GitHub release artifact, resolved through
   a pinned repository declaration rather than committing a binary into this repo.
 - Put runtime handlers in `spell`, client UI in `spell.client`, and configuration
@@ -162,6 +162,11 @@ with software rendering and captured the seven-element selector. In-world
 hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
+
+Upgrade to Ability Core 1.0.0 and Ability Hotbar alpha.88: their public APIs
+differ from alpha.42/alpha.56 only by additions (ability stats and descriptions,
+activation modes, hotbar presets and per-slot modes). `build` and all 35
+GameTests passed with the new versions installed.
 
 Run `./gradlew runGameTestServer` for the 35 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
