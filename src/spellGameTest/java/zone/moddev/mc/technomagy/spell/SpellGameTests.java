@@ -42,6 +42,7 @@ import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.Affordability;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
+import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
 import org.bitwisemadness.abilitycore.api.MasteryView;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
@@ -58,7 +59,7 @@ import zone.moddev.mc.technomagy.mana.ManaType;
 
 /**
  * Dedicated-server, actual-pipeline checks for each of the sixteen approved effects, their payment
- * (D76-D78), and their mastery attribution (D79).
+ * (D76-D78), and their mastery attribution, shares and effects (D79-D80).
  */
 @GameTestHolder("technomagy")
 @PrefixGameTestTemplate(false)
@@ -867,15 +868,17 @@ public final class SpellGameTests {
         h.succeed();
     }
 
-    /** A successful cast grants mastery priced from the spell's configured cost (D79). */
+    /**
+     * A successful cast grants effort priced from the spell's configured cost (D79), split by the
+     * D80 shares so the spell's own target keeps the 45% remainder.
+     */
     @GameTest(template = "empty")
     public static void masteryActivationGain(GameTestHelper h) {
         ServerPlayer caster = player(h, PlayerSpell.MEND);
         caster.setHealth(10);
         cast(h, caster, PlayerSpell.MEND);
-        double xp = MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp();
-        h.assertTrue(xp == 2.0,
-            "Mend activation must grant its configured cost total (2 units), got " + xp);
+        assertOwnXp(h, caster, PlayerSpell.MEND,
+            "Mend's 2-unit activation must keep its 45% self-share", 0.9);
         h.succeed();
     }
 
@@ -885,26 +888,25 @@ public final class SpellGameTests {
         Husk struck = target(h);
         ServerPlayer caster = player(h, PlayerSpell.LIGHTNING);
         cast(h, caster, PlayerSpell.LIGHTNING);
-        double afterHit = MasteryView.of(caster, PlayerSpell.LIGHTNING.id()).ownXp();
-        h.assertTrue(afterHit == 3.0,
-            "A damaging strike must grant activation (2) plus HIT (1), got " + afterHit);
+        assertOwnXp(h, caster, PlayerSpell.LIGHTNING,
+            "A damaging strike must keep 45% of activation (2) plus HIT (1)", 1.35);
         // A freshly hurt target is inside vanilla's damage cooldown, so the killing strike
         // lands on a new one-HP husk instead of the same-tick second hit being refused.
         struck.discard();
         Husk dying = target(h);
         dying.setHealth(1.0F);
         cast(h, caster, PlayerSpell.LIGHTNING);
-        double afterKill = MasteryView.of(caster, PlayerSpell.LIGHTNING.id()).ownXp();
-        h.assertTrue(afterKill == 7.0,
-            "A killing strike must grant activation (2) plus KILL (2), got " + afterKill);
+        assertOwnXp(h, caster, PlayerSpell.LIGHTNING,
+            "A killing strike must keep 45% of activation (2) plus KILL (2)", 3.15);
         h.succeed();
     }
 
     /**
      * A ward's absorbed damage credits the casting player's mastery even though the ward protects
-     * another entity (D79's caster ownership) - and only for damage that applies: a hit vanilla
-     * discards inside its invulnerability frames drains the pool without any credit, and the ward's
-     * own caster earns nothing from hitting what they warded (review of D79).
+     * another entity (D79's caster ownership) - raw absorption routes like any other grant (D80)
+     * - and only for damage that applies: a hit vanilla discards inside its invulnerability frames
+     * drains the pool without any credit, and the ward's own caster earns nothing from hitting
+     * what they warded (review of D79).
      */
     @GameTest(template = "empty")
     public static void masteryWardAbsorption(GameTestHelper h) {
@@ -914,36 +916,31 @@ public final class SpellGameTests {
         h.assertTrue(husk.hurt(h.getLevel().damageSources().magic(), 4), "First hit must land");
         float health = husk.getHealth();
         cast(h, caster, PlayerSpell.WARD);
-        double afterCast = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
-        h.assertTrue(afterCast == 2.0,
-            "Ward activation must grant its configured cost total (2 units), got " + afterCast);
+        assertOwnXp(h, caster, PlayerSpell.WARD,
+            "Ward's 2-unit activation must keep its 45% self-share", 0.9);
         // A same-size hit inside those frames is discarded by vanilla: the ward's pool is spent
         // on nothing, so no mastery may be credited for it.
         h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
             "A same hit inside the frames must be discarded");
         h.assertTrue(husk.getHealth() == health, "The discarded hit changed health");
-        double afterDiscard = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
-        h.assertTrue(afterDiscard == 2.0,
-            "Damage vanilla discarded must not be credited, got " + afterDiscard);
+        assertOwnXp(h, caster, PlayerSpell.WARD,
+            "Damage vanilla discarded must not be credited", 0.9);
         // Frames over: the same hit lands and the ward absorbs it whole (the discarded hit above
         // already spent half the pool, so this one empties it).
         husk.invulnerableTime = 0;
         h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
             "Ward did not absorb damage");
         h.assertTrue(husk.getHealth() == health, "Absorbed damage changed health");
-        double afterAbsorb = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
-        h.assertTrue(afterAbsorb == 6.0,
-            "Absorbing 4 damage must grant 4 raw mastery to the ward's caster, got "
-                + afterAbsorb);
+        assertOwnXp(h, caster, PlayerSpell.WARD,
+            "Absorbing 4 damage must add its 45% share to the ward's caster", 2.7);
         // The ward's own caster farming their warded target earns nothing: a fresh ward (the
         // probes above spent the first pool) takes the hit without any credit.
         cast(h, caster, PlayerSpell.WARD);
         double beforeSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
         h.assertTrue(!husk.hurt(h.getLevel().damageSources().playerAttack(caster), 4),
             "The caster's own hit must still be absorbed");
-        double afterSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
-        h.assertTrue(afterSelf == beforeSelf,
-            "The ward's own caster must not earn from their warded target, got " + afterSelf);
+        assertOwnXp(h, caster, PlayerSpell.WARD,
+            "The ward's own caster must not earn from their warded target", beforeSelf);
         h.succeed();
     }
 
@@ -955,9 +952,159 @@ public final class SpellGameTests {
         h.assertTrue(MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp() == 0.0,
             "An undeclared KILL trigger granted XP");
         MasteryAwards.award(caster, PlayerSpell.MEND.id(), MasteryTrigger.ACTIVATION, 5.0);
-        h.assertTrue(MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp() == 5.0,
-            "A declared ACTIVATION trigger did not grant its raw amount");
+        assertOwnXp(h, caster, PlayerSpell.MEND,
+            "A declared raw ACTIVATION must keep its 45% self-share", 2.25);
         h.succeed();
+    }
+
+    /**
+     * Every grant splits 40% across the spell's element buckets, 15% to its discipline bucket and
+     * the remainder to the spell - at the declared fractions and the shipped level curve (D80).
+     */
+    @GameTest(template = "empty")
+    public static void masteryShareRouting(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.LIGHTNING);
+        MasteryAwards.award(caster, PlayerSpell.LIGHTNING.id(), MasteryTrigger.ACTIVATION, 500.0);
+        assertOwnXp(h, caster, PlayerSpell.LIGHTNING, "Self must keep the 45% remainder", 225.0);
+        MasteryView lightning = MasteryView.of(caster, PlayerSpell.LIGHTNING.id());
+        h.assertTrue(lightning.ownLevel() == 2,
+            "225 self XP must reach level 2 on the shipped table, got " + lightning.ownLevel());
+        assertShare(h, lightning, "SUBCATEGORY|technomagy:fire", 0.2, 1);
+        assertShare(h, lightning, "SUBCATEGORY|technomagy:air", 0.2, 1);
+        assertShare(h, lightning, "SUBCATEGORY|technomagy:striking", 0.15, 1);
+        MasteryAwards.award(caster, PlayerSpell.GROWTH.id(), MasteryTrigger.ACTIVATION, 300.0);
+        assertOwnXp(h, caster, PlayerSpell.GROWTH, "Growth self must keep 45% of 300", 135.0);
+        MasteryView growth = MasteryView.of(caster, PlayerSpell.GROWTH.id());
+        double third = 0.4 / 3;
+        assertShare(h, growth, "SUBCATEGORY|technomagy:water", third, 0);
+        assertShare(h, growth, "SUBCATEGORY|technomagy:light", third, 0);
+        assertShare(h, growth, "SUBCATEGORY|technomagy:earth", third, 0);
+        assertShare(h, growth, "SUBCATEGORY|technomagy:shaping", 0.15, 0);
+        h.succeed();
+    }
+
+    /**
+     * Mend's heal scales with the POWER multiplier over the aggregate level on core's default curve
+     * - asymptotic toward +50%, x1.030055 at the pinned aggregate 6.2 (D80).
+     */
+    @GameTest(template = "empty")
+    public static void masteryPowerScalesHeal(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        capMastery(caster, PlayerSpell.MEND);
+        caster.setHealth(10);
+        cast(h, caster, PlayerSpell.MEND);
+        double aggregate = 4 + 0.2 * 4 + 0.2 * 4 + 0.15 * 4;
+        double expected = 10
+            + SpellConfig.HEAL.get() * (1 + 0.5 * (1 - Math.exp(-0.01 * aggregate)));
+        h.assertTrue(Math.abs(caster.getHealth() - expected) < 1.0e-3,
+            "Mend must heal to " + expected + " at aggregate " + aggregate + ", got "
+                + caster.getHealth());
+        h.succeed();
+    }
+
+    /**
+     * Constraint's slowdown scales its duration by the DURATION multiplier over the aggregate
+     * level, rounded to the nearest half-up tick - D80's integer-sink rule.
+     */
+    @GameTest(template = "empty")
+    public static void masteryDurationScalesEffect(GameTestHelper h) {
+        Husk husk = target(h);
+        ServerPlayer caster = player(h, PlayerSpell.CONSTRAINT);
+        capMastery(caster, PlayerSpell.CONSTRAINT);
+        cast(h, caster, PlayerSpell.CONSTRAINT);
+        var effect = husk.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+        h.assertTrue(effect != null, "Constraint did not slow the target");
+        double aggregate = 4 + 0.2 * 4 + 0.2 * 4 + 0.15 * 4;
+        int expected = (int) Math.round(
+            SpellConfig.DURATION.get()
+                * (1 + 0.5 * (1 - Math.exp(-0.01 * aggregate))));
+        h.assertTrue(effect.getDuration() == expected,
+            "Slowdown must last " + expected + " scaled ticks, got " + effect.getDuration());
+        h.succeed();
+    }
+
+    /**
+     * The shipped level table owns the curve: cumulative thresholds 50/125/250/425 with a cap at
+     * level 4, overriding core's config formula for every target (D80).
+     */
+    @GameTest(template = "empty")
+    public static void masteryLevelsCurve(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        MasteryTarget self = MasteryTarget.ability(PlayerSpell.MEND.id());
+        MasteryAwards.awardTo(caster, self, 49.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 0, "Below 50 XP must stay level 0");
+        MasteryAwards.awardTo(caster, self, 1.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 1, "50 XP must reach level 1");
+        MasteryAwards.awardTo(caster, self, 75.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 2, "125 XP must reach level 2");
+        MasteryAwards.awardTo(caster, self, 125.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 3, "250 XP must reach level 3");
+        MasteryAwards.awardTo(caster, self, 175.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 4, "425 XP must reach level 4");
+        MasteryAwards.awardTo(caster, self, 5000.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 4, "The shipped table must cap at level 4");
+        h.succeed();
+    }
+
+    /**
+     * Crossing a level threshold multiplies the spell's effort gain - the D80 effort-surge perk,
+     * read at grant time before routing: level 1 grants no surge, level 2 grants x1.1.
+     */
+    @GameTest(template = "empty")
+    public static void masteryEffortSurge(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        MasteryTarget self = MasteryTarget.ability(PlayerSpell.MEND.id());
+        caster.setHealth(10);
+        MasteryAwards.awardTo(caster, self, 50.0);
+        cast(h, caster, PlayerSpell.MEND);
+        assertOwnXp(h, caster, PlayerSpell.MEND, "Level 1 must not surge Mend's effort", 50.9);
+        MasteryAwards.awardTo(caster, self, 75.0);
+        cast(h, caster, PlayerSpell.MEND);
+        assertOwnXp(h, caster, PlayerSpell.MEND, "Level 2 must surge Mend's effort by x1.1",
+            126.89);
+        h.succeed();
+    }
+
+    /** Asserts one spell's self-target XP, allowing double error from share routing (D80). */
+    private static void assertOwnXp(GameTestHelper h, ServerPlayer caster, PlayerSpell spell,
+        String message, double expected) {
+        double xp = MasteryView.of(caster, spell.id()).ownXp();
+        h.assertTrue(Math.abs(xp - expected) < 1.0e-9, message + ", got " + xp);
+    }
+
+    /** Asserts one spell's self-target level on the shipped curve (D80). */
+    private static void assertOwnLevel(GameTestHelper h, ServerPlayer caster, PlayerSpell spell,
+        int level, String message) {
+        int actual = MasteryView.of(caster, spell.id()).ownLevel();
+        h.assertTrue(actual == level, message + ", got level " + actual);
+    }
+
+    /** Asserts one declared share target's fraction and curve level inside a view (D80). */
+    private static void assertShare(GameTestHelper h, MasteryView view, String key, double share,
+        int level) {
+        MasteryView.TargetLevel match = null;
+        for (MasteryView.TargetLevel target : view.targets()) {
+            if (target.target().key().equals(key)) {
+                match = target;
+                break;
+            }
+        }
+        h.assertTrue(match != null, "No share target " + key + " in " + view.targets());
+        h.assertTrue(Math.abs(match.share() - share) < 1.0e-9,
+            "Share for " + key + " must be " + share + ", got " + match.share());
+        h.assertTrue(match.level() == level,
+            "Level for " + key + " must be " + level + ", got " + match.level());
+    }
+
+    /**
+     * Puts a spell and every one of its share targets at the shipped cap (425 XP each), so the
+     * aggregate level is a known 6.2 for the effect-math assertions (D80).
+     */
+    private static void capMastery(ServerPlayer caster, PlayerSpell spell) {
+        MasteryAwards.awardTo(caster, MasteryTarget.ability(spell.id()), 425.0);
+        for (MasteryView.TargetLevel target : MasteryView.of(caster, spell.id()).targets()) {
+            MasteryAwards.awardTo(caster, target.target(), 425.0);
+        }
     }
 
     /** Creates a survival, focus-holding caster with 3/10 pools and no target in view. */
