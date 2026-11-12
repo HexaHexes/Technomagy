@@ -157,10 +157,11 @@ final class SpellMastery {
      * The menu presentation for one spell (D81), answering core's provider contract: hotbar's
      * answered mastery snapshot decides, so an unanswered exchange or a spell core never declared
      * yields an empty presentation - no meter, no rows, never a guessed zero - and an answered one
-     * yields the mastery meter. The snapshot reads ({@link CoreMasteryCompat}) are the client's
-     * stored copy of the server's answer, so this stays side-disciplined: synced values only, and
-     * the player argument core passes is unused because the snapshot already names the local
-     * player's state.
+     * yields the mastery meter. The answered-and-declared gate runs before any snapshot read, so an
+     * unanswered or undeclared id touches no numbers. The snapshot reads
+     * ({@link CoreMasteryCompat}) are the client's stored copy of the server's answer, so this
+     * stays side-disciplined: synced values only, and the player argument core passes is unused
+     * because the snapshot already names the local player's state.
      *
      * @param player
      *            the player whose menu is rendering (the client's local player in production)
@@ -169,9 +170,12 @@ final class SpellMastery {
      * @return the presentation; never null, so core never logs a contract violation for it
      */
     static AbilityPresentation present(Player player, ResourceLocation abilityId) {
-        return presentation(
-            CoreMasteryCompat.answered() && CoreMasteryCompat.declared(abilityId),
-            CoreMasteryCompat.levelOf(abilityId), CoreMasteryCompat.progressOf(abilityId));
+        if (!CoreMasteryCompat.answered() || !CoreMasteryCompat.declared(abilityId)) {
+            // gate first: an unanswered or undeclared id is never even read (review of D81)
+            return presentation(false, 0, 0.0);
+        }
+        return presentation(true, CoreMasteryCompat.levelOf(abilityId),
+            CoreMasteryCompat.progressOf(abilityId));
     }
 
     /**
