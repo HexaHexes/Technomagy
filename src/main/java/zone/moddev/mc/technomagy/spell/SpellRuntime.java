@@ -72,10 +72,11 @@ import zone.moddev.mc.technomagy.mana.SpellEngine;
  *
  * <p>
  * All target coordinates are computed on the server. Clients cannot supply damage, duration,
- * radius, or arbitrary target positions. Casts are validated before the caster is charged from
- * their personal pools through {@link SpellPayment} (D76). Timed wards/mist are owned by this
- * runtime and cleared at server shutdown; ordinary status effects and scheduled temporary blocks
- * use Minecraft's own persistence.
+ * radius, or arbitrary target positions. Payment is Ability Core's: the pipeline prices the
+ * declared pool costs, refuses unaffordable casts before this handler runs, and charges the
+ * caster's personal pools at its single post-activation charge site (D78). Timed wards/mist are
+ * owned by this runtime and cleared at server shutdown; ordinary status effects and scheduled
+ * temporary blocks use Minecraft's own persistence.
  */
 final class SpellRuntime {
     private static final TagKey<Block> GROWTH_EXCLUDED = TagKey.create(
@@ -85,24 +86,25 @@ final class SpellRuntime {
     private final List<Mist> mists = new ArrayList<>();
 
     /**
-     * Validates the held casting device (D74), computes targets, charges the caster (D76), and
-     * applies one registered ability.
+     * Validates the held casting device (D74), computes targets, and applies one registered
+     * ability. Ability Core charges the caster's personal pools afterwards (D78).
      *
-     * <h2>Validate, charge, apply</h2>
+     * <h2>Validate, apply, charge</h2>
      *
      * <p>
      * Every handler is split in two. {@code prepare*} methods check everything that can be checked
      * without changing the world (target presence, protection and placement vetoes, recipe outputs,
      * receiver acceptance) and return the {@link Effect} to apply, or empty when the cast has no
-     * valid target. Only then is the caster charged, so an invalid cast never costs anything and
-     * never needs a refund.
+     * valid target. Ability Core prices the declared costs, refuses unaffordable casts before the
+     * handler runs, and charges the validated snapshot only after this handler reports
+     * {@link ActivationResult#ACTED}, so an invalid cast never costs anything.
      *
      * <p>
      * Some outcomes are decided only at application time: damage, healing, and status effects can
      * be cancelled by events or rejected by the target; block and entity placement can still be
      * refused; Growth's extra ticks are random. When the applied effect reports that it did
-     * nothing, the charge is {@linkplain SpellPayment#refund refunded} and the cast is refused, so
-     * no effect is ever paid for without happening.
+     * nothing, the cast is refused instead of acting, and the post-activation charge never runs -
+     * no effect is ever paid for without happening (D78).
      *
      * @param spell
      *            the registered spell being activated
@@ -110,8 +112,8 @@ final class SpellRuntime {
      *            Ability Core's request; its ability ID must match the spell
      * @param player
      *            the caster
-     * @return {@link ActivationResult#ACTED} when the effect happened and was paid for, otherwise
-     *         the refusal
+     * @return {@link ActivationResult#ACTED} when the effect happened, triggering Ability Core's
+     *         post-activation charge; otherwise the refusal
      * @throws IllegalStateException
      *             if called off the server thread
      */
@@ -128,6 +130,12 @@ final class SpellRuntime {
             || !player.isAlive()
             || !request.abilityId().equals(spell.id())) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_RESTRICTED);
+        }
+        if (SpellConfig.PAYMENT_ENABLED.get() && !player.isCreative()
+            && SpellConfig.cost(spell).isEmpty()) {
+            // Already reported when the config loaded; refusing keeps a misconfigured spell from
+            // being free (D76).
+            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
         }
         var engine = new SpellEngine<>(
             new SpellElements<>(
@@ -210,15 +218,7 @@ final class SpellRuntime {
         if (effect.isEmpty()) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
         }
-        SpellPayment.Charge charge;
-        switch (SpellPayment.charge(player, spell)) {
-            case SpellPayment.Outcome.Refused refused -> {
-                return ActivationResult.refused(refused.outcome());
-            }
-            case SpellPayment.Outcome.Paid paid -> charge = paid.charge();
-        }
         if (!effect.get().apply()) {
-            SpellPayment.refund(player, spell, charge);
             return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
         }
         return ActivationResult.ACTED;

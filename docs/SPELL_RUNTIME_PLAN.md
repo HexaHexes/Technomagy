@@ -127,16 +127,28 @@ one Air), Growth one Water, Light, and Earth, and Life & death one Light and one
 Dark. A spell whose six costs are all zero is reported as an error when the
 config loads and is refused while payment is enabled. It is never cast for free.
 
-Each handler first validates its target without changing the world. An invalid
-cast is refused before any charge. The caster is then charged, and only then is
-the effect applied. Ley Lines 0.5.6 spends one currency per call, and each spend
-can be vetoed by other mods, so `SpellPayment` checks every pool first, spends
-them in order, and returns earlier spends if a later one fails. Some outcomes are
-only decided when the effect is applied: a cancelled damage or heal event, a
-refused block or entity, or a Growth roll with no extra ticks. If the effect then
-does nothing, the charge is refunded and the cast is refused. Ley Lines can also
-veto a return, and it will not raise a balance above capacity. When a return
-fails, an error names the player, pool, and units.
+Charging runs through Ability Core's EXTERNAL model (D78). `SpellResources`
+declares one resource pair per pool, `technomagy:<flavor>`, backed by Ley Lines'
+`PlayerPowerService`, and every spell definition declares all six pools at its
+input-stream amounts - display defaults, because the per-world server config is
+not loaded when definitions register. On each cast Ability Core's
+`technomagy:spell_cost` amount resolver re-prices those entries from the server
+config, then validates every selected entry fail-closed before the handler
+runs: the pool must exist, be active, and hold the price. An invalid target or
+an unaffordable cast is refused before the handler runs and before any pool is
+touched.
+
+The handler only prepares and applies the effect. Ability Core charges the
+validated snapshots at its single charge site after the effect reports ACTED, so
+outcomes decided only at application time - a cancelled damage or heal event, a
+refused block or entity, a Growth roll with no extra ticks - never cost
+anything: no effect is paid for without happening, and no refund is needed. A
+spend vetoed or refused after the effect has acted cannot be rolled back: the
+cast stands, that pool alone goes unpaid, and the failure is logged as a warning
+naming the player, pool, units, and status. The refund half of each pair still
+returns units to a caller that asks (`ResourceConsumers.refund`); Ley Lines can
+refuse a return, and it will not raise a balance above capacity, so a failed
+return is an error naming the player, pool, and units.
 
 ### Recharge
 
@@ -165,10 +177,11 @@ initialization; the virtual-display run completed successfully.
 
 Run `./gradlew runGameTestServer` for the 35 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
-Ward/Steam interaction, and the actual focus air/block-use paths. Five payment
+Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
-target without a charge, rolling back a vetoed spend, refunding an effect cancelled
-at application time, refusing an all-zero cost, and exempting creative
+target without a charge, a spend vetoed after the effect has acted leaving the
+cast standing with only that pool unpaid, an effect cancelled at application
+time never being charged, refusing an all-zero cost, and exempting creative
 casters. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task

@@ -4,22 +4,30 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
+import com.mojang.logging.LogUtils;
+
+import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
+
+import org.slf4j.Logger;
 
 import zone.moddev.mc.technomagy.mana.ManaType;
 
 /**
  * Server-authoritative, bounded first-cast tuning approved in D69, plus the per-spell elemental
- * costs charged from personal pools (D70, D76).
+ * costs charged from personal pools through Ability Core's resource pairs (D70, D78).
  *
  * <p>
  * Payment is enabled by default now that carrying a focus unlocks recharge (D77). Costs are one
  * section per spell with one whole-unit value per elemental flavor, defaulting to
- * {@link PlayerSpell#inputUnits()}. A spell whose six costs are all zero is invalid;
- * {@link SpellPayment} reports it and refuses that spell while payment is enabled rather than
- * letting it cast for free.
+ * {@link PlayerSpell#inputUnits()}; the {@code technomagy:spell_cost} resolver prices each cast
+ * from these values (D78). A spell whose six costs are all zero is invalid; {@link #configChanged}
+ * reports it at load and the cast handler refuses that spell while payment is enabled rather than
+ * letting it cast for free (D76).
  */
 final class SpellConfig {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     /** Largest configurable per-element cost of one cast, in whole pool units (D47). */
     static final int MAX_COST = 64;
     static final ModConfigSpec SPEC;
@@ -109,5 +117,59 @@ final class SpellConfig {
     }
 
     private SpellConfig() {
+    }
+
+    /**
+     * Reports every spell whose configured costs are all zero when the spell config loads or
+     * reloads. Such a spell is refused while payment is enabled (see the cast handler), so a typo
+     * can never make it free; this message tells the operator why.
+     *
+     * @param event
+     *            a loading or reloading event; other mods' configs are ignored
+     */
+    static void configChanged(ModConfigEvent event) {
+        if (event.getConfig().getSpec() != SPEC) {
+            return;
+        }
+        for (PlayerSpell spell : PlayerSpell.values()) {
+            if (cost(spell).isEmpty()) {
+                LOGGER.error("Invalid spell config: every payment.costs.{} value is 0; {} will be "
+                    + "refused while payment is enabled. Give it a cost of at least one unit.",
+                    spell.id().getPath(), spell.id());
+            }
+        }
+    }
+
+    /**
+     * Reads one spell's configured cost for one flavor, including a configured zero: zero-cost
+     * flavors are priced at zero and never checked or spent (D76, D78).
+     *
+     * @param spell
+     *            the spell being priced
+     * @param element
+     *            the flavor to read
+     * @return the configured whole-unit cost
+     */
+    static int configured(PlayerSpell spell, ManaType element) {
+        return COSTS.get(spell).get(element).get();
+    }
+
+    /**
+     * Reads one spell's configured cost.
+     *
+     * @param spell
+     *            the spell being priced
+     * @return positive units by flavor, in {@link ManaType#FLAVORS} order; empty when every cost is
+     *         zero, which is invalid configuration
+     */
+    static Map<ManaType, Integer> cost(PlayerSpell spell) {
+        Map<ManaType, Integer> cost = new EnumMap<>(ManaType.class);
+        COSTS.get(spell).forEach((element, value) -> {
+            int units = value.get();
+            if (units > 0) {
+                cost.put(element, units);
+            }
+        });
+        return cost;
     }
 }

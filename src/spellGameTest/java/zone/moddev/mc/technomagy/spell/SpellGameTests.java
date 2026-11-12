@@ -701,18 +701,27 @@ public final class SpellGameTests {
             player.setHealth(player.getMaxHealth());
             var invalid = run(player, PlayerSpell.SHROUD);
             h.assertTrue(invalid.isSuccess(), "Affordable Shroud was refused: " + invalid);
+            // Restore Light so the next cast is affordable: Ability Core's RESOURCE phase answers
+            // before the handler runs (D78), so a drained pool would otherwise mask the handler's
+            // own invalid-target refusal with REFUSED_UNAFFORDABLE.
+            h.assertTrue(power.setBalance(player.getUUID(), Technomagy.LIGHT, 3,
+                new PowerRequest.Consumer(Technomagy.LIGHT)).succeeded(),
+                "Could not restore Light");
             var full = run(player, PlayerSpell.MEND);
             h.assertTrue(full.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
                 "Mend at full health was not an invalid target: " + full);
             assertBalances(h, player, "Only the successful Shroud may be charged",
-                3, 3, 2, 3, 0, 2);
+                3, 3, 2, 3, 3, 2);
         });
         h.succeed();
     }
 
-    /** A spend vetoed partway through returns the pools already charged. */
+    /**
+     * A spend vetoed after the effect has acted cannot be rolled back: the cast stands and only the
+     * vetoed pool goes unpaid (D78's accepted post-activation charge semantics).
+     */
     @GameTest(template = "empty")
-    public static void paymentRollsBackVetoedSpend(GameTestHelper h) {
+    public static void paymentCastStandsWhenSpendVetoed(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
         withPayment(() -> {
             player.setHealth(10);
@@ -723,16 +732,19 @@ public final class SpellGameTests {
             } finally {
                 PaymentVetoes.LIGHT_SPEND.set(null);
             }
-            h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_RESTRICTED,
-                "Vetoed payment was not refused as restricted: " + holder.result);
-            h.assertTrue(player.getHealth() == 10, "Vetoed payment still healed");
-            assertBalances(h, player, "Water was not rolled back after the Light veto",
-                3, 3, 3, 3, 3, 3);
+            h.assertTrue(holder.result.isSuccess(),
+                "Vetoed payment refused a cast that had already acted: " + holder.result);
+            h.assertTrue(player.getHealth() > 10, "Vetoed payment undid the heal");
+            assertBalances(h, player, "Water must be charged and the vetoed Light left alone",
+                3, 3, 3, 2, 3, 3);
         });
         h.succeed();
     }
 
-    /** A validated effect that does nothing at application time is refunded. */
+    /**
+     * A validated effect that does nothing at application time never reaches Ability Core's
+     * post-activation charge, so no pool changes (D78).
+     */
     @GameTest(template = "empty")
     public static void paymentRefundsIneffectiveCast(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -748,7 +760,7 @@ public final class SpellGameTests {
             h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
                 "Cancelled heal was not refused: " + holder.result);
             h.assertTrue(player.getHealth() == 10, "Cancelled heal changed health");
-            assertBalances(h, player, "Ineffective Mend was not refunded", 3, 3, 3, 3, 3, 3);
+            assertBalances(h, player, "An ineffective Mend changed a pool", 3, 3, 3, 3, 3, 3);
         });
         h.succeed();
     }

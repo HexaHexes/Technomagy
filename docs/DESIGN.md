@@ -790,7 +790,9 @@ result), the charge is refunded and the cast is refused. No effect is paid for
 without happening. Ley Lines may also refuse a return, including restoring a
 balance above capacity; such a failure is reported as an error naming the
 player, pool, and units. A true atomic multi-currency spend in Ley Lines would
-supersede the rollback.
+supersede the rollback. D78 supersedes this ordering and rollback in
+implementation: Ability Core now validates before the handler and charges after
+the effect acts, keeping the validation and no-effect rules above.
 
 **D77.** Personal pool recharge (D70) unlocks **permanently** the first time a
 player has a `technomagy:spell_focus` anywhere in their inventory, by any means
@@ -804,6 +806,47 @@ full or inactive, the pulse does nothing. The interval and units per pulse are
 server-configurable. Offline, dead, and spectating players neither recharge
 nor unlock. Ley Lines' fixed per-pool
 automatic rate stays disabled, since it cannot choose a random element.
+
+**D78.** Player spell charging runs through Ability Core's **EXTERNAL** charging
+model instead of Technomagy's own validate-charge-apply transaction. This
+supersedes D76's charge ordering and multi-spend rollback approximation; D76's
+cost configuration, `payment.enabled` default, creative exemption, and all-zero
+refusal remain in force.
+
+Each personal pool's Ley Lines currency (D70) is declared as one Ability Core
+resource pair whose id is the currency id (`technomagy:<flavor>`), so a cost
+entry names the pool it pays from. The read half answers affordability from a
+live `PlayerPowerService` snapshot; the write half spends through Ability Core's
+single post-activation charge site, with a refund half for callers that ask for
+one. The pairs are declared only while Ley Lines is loaded. Every spell
+definition declares all six pools at its input-stream nominal amounts: those
+declared amounts are display defaults, because the per-world server config is
+not loaded when definitions register, and the `technomagy:spell_cost` amount
+resolver re-prices every entry from that config on each cast.
+
+Ability Core then prices the cast, validates every selected entry fail-closed
+before the handler runs (the pool must exist, be active, and hold the price),
+charges only after the handler reports ACTED. Because affordability is answered
+before the handler, a cast that is both unaffordable and invalid reports the
+shortfall first. The consequences are the payment rules restated for the new
+mechanism:
+
+- An invalid cast is refused before any pool is touched, as before.
+- An ineffective cast - an event cancels it, placement is refused, a random roll
+  has no result - never reaches the charge site, so no effect is ever paid for
+  without happening and no refund path is needed.
+- A spend vetoed or refused **after** the effect has acted cannot be rolled
+  back: the cast stands, that pool alone goes unpaid, and the failure is logged
+  as a warning naming the player, pool, units, and status. This replaces D76's
+  rollback paragraph; a true atomic multi-currency spend in Ley Lines would let
+  the charge pre-commit instead.
+- With payment disabled or a creative caster, both halves answer "free", so no
+  pool is checked or spent.
+- A spell whose configured costs are all zero is reported when the config loads
+  and refused by the cast handler while payment is enabled, never cast for free.
+
+A refund that Ley Lines refuses is still an error naming the player, pool, and
+units, because those units are lost.
 
 ## Integration foundations
 
