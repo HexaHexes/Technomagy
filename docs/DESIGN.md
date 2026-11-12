@@ -790,7 +790,9 @@ result), the charge is refunded and the cast is refused. No effect is paid for
 without happening. Ley Lines may also refuse a return, including restoring a
 balance above capacity; such a failure is reported as an error naming the
 player, pool, and units. A true atomic multi-currency spend in Ley Lines would
-supersede the rollback.
+supersede the rollback. D78 supersedes this ordering and rollback in
+implementation: Ability Core now validates before the handler and charges after
+the effect acts, keeping the validation and no-effect rules above.
 
 **D77.** Personal pool recharge (D70) unlocks **permanently** the first time a
 player has a `technomagy:spell_focus` anywhere in their inventory, by any means
@@ -804,6 +806,124 @@ full or inactive, the pulse does nothing. The interval and units per pulse are
 server-configurable. Offline, dead, and spectating players neither recharge
 nor unlock. Ley Lines' fixed per-pool
 automatic rate stays disabled, since it cannot choose a random element.
+
+**D78.** Player spell charging runs through Ability Core's **EXTERNAL** charging
+model instead of Technomagy's own validate-charge-apply transaction. This
+supersedes D76's charge ordering and multi-spend rollback approximation; D76's
+cost configuration, `payment.enabled` default, creative exemption, and all-zero
+refusal remain in force.
+
+Each personal pool's Ley Lines currency (D70) is declared as one Ability Core
+resource pair whose id is the currency id (`technomagy:<flavor>`), so a cost
+entry names the pool it pays from. The read half answers affordability from a
+live `PlayerPowerService` snapshot; the write half spends through Ability Core's
+single post-activation charge site, with a refund half for callers that ask for
+one. The pairs are declared only while Ley Lines is loaded. Every spell
+definition declares all six pools at its input-stream nominal amounts: those
+declared amounts are display defaults, because the per-world server config is
+not loaded when definitions register, and the `technomagy:spell_cost` amount
+resolver re-prices every entry from that config on each cast. The resolver is
+Technomagy's own: a foreign ability that names it fails closed with a logged
+resolution error rather than an invented price (recorded here because D76
+never covered the case), and a Technomagy spell's declared list must be
+exactly the six pool ids, each once - a dropped, duplicated, or non-pool id
+refuses the cast closed instead of quietly charging less.
+
+Ability Core then prices the cast, validates every selected entry fail-closed
+before the handler runs (the pool must exist, be active, and hold the price),
+charges only after the handler reports ACTED. Because affordability is answered
+before the handler, a cast that is both unaffordable and invalid reports the
+shortfall first. The consequences are the payment rules restated for the new
+mechanism:
+
+- An invalid cast is refused before any pool is touched, as before.
+- An ineffective cast - an event cancels it, placement is refused, a random roll
+  has no result - never reaches the charge site, so no effect is ever paid for
+  without happening and no refund path is needed.
+- A spend vetoed or refused **after** the effect has acted cannot be rolled
+  back: the cast stands, that pool alone goes unpaid, and the failure is
+  logged by status - a warning for Ley Lines' veto, the balance race, or an
+  inactive pool, an error for every other status, because a storage failure or
+  a rejected re-entrant call is a defect the build's ERROR log gate must
+  catch. This replaces D76's rollback paragraph; a true atomic multi-currency
+  spend in Ley Lines would let the charge pre-commit instead.
+- With payment disabled or a creative caster, the read half answers a
+  zero-price snapshot and the charge half charges exactly that: no pool is
+  checked, and the two halves cannot disagree about who pays even if the
+  config or gamemode changes between them.
+- A fractional priced amount - only a future mastery discount can produce one -
+  is refused fail-closed at the affordability check, never rounded; a rounding
+  rule would then be a design decision of its own.
+- A spell whose configured costs are all zero is reported when the config loads
+  and refused by the cast handler while payment is enabled, never cast for free.
+
+A refund that Ley Lines refuses is still an error naming the player, pool, and
+units, because those units are lost.
+
+**D79.** Spell mastery, layer one: every player spell opts into Ability
+Core's mastery system (REQ-CORE-12), so casting, striking, killing and
+warding grant experience toward per-spell levels.
+`SpellMastery.declare()` runs at mod construction from
+`SpellContent.register()`, right after the pool resource pairs (D78) and
+before Ability Core's registry events fire. An undeclared ability never
+touches the system, so all sixteen spells declare one.
+
+Each spell's spec is self-directed: grants land on the spell's own
+ability target - the implicit self-remainder, with no share list and no
+effect axes in this layer. Element/discipline shares, the `POWER` and
+`DURATION` axes, perks, datapack levels and presentation are later
+layers, each with its own decision. The gain comes from the named handler
+`technomagy:spell_effort`, and the spec keeps a static base gain of `2.0`
+as the loud fallback core uses if that handler name ever fails to
+resolve.
+
+The handler prices effort **linearly from the server-configured cast
+cost**: `XP = total configured cost x trigger weight`, read whether or
+not payment is enabled - the cost table is the spell's intrinsic price
+tag, not a payment-mode detail. The weights are initial values, to be
+tuned:
+
+| Trigger | Weight | Fired by |
+| --- | --- | --- |
+| `ACTIVATION` | `1.0` | Ability Core's post-activation tail, on every successful cast of any spell |
+| `HIT` | `0.5` | `SpellMastery`, when Lightning's bolt damages its target |
+| `KILL` | `1.0` | `SpellMastery`, when that same bolt brings the target to zero health |
+| `CUSTOM` | raw absorbed damage | `SpellMastery`, when a Ward absorbs incoming damage |
+
+A spell whose configured costs are all zero - configuration D76 already
+reports and refuses while payment is enabled - prices its effort at the
+base `2.0` instead of `0`, so a misconfigured spell still progresses
+rather than silently granting nothing. An id that is not one of the
+sixteen spells raises an error instead: the handler throws, core logs the
+misbehaving handler and falls back to the static base gain it owns, so a
+foreign spec that borrows `technomagy:spell_effort` is loud rather than
+silently priced at `2.0` (recorded here because D79 covered only the
+all-zero case).
+
+Trigger sets are declared intent: Lightning alone declares `HIT`/`KILL`,
+Ward alone declares `CUSTOM`, every spell declares `ACTIVATION`, and an
+award for an undeclared trigger is ignored by core. One bolt strike is
+one award: a kill grants `KILL`, never `KILL` plus `HIT`.
+
+Award sites live in `SpellMastery`:
+
+- Lightning fires `HIT`/`KILL` from inside its effect, only after
+  `hurt()` actually applied damage, deciding `KILL` by the target
+  reaching zero health.
+- Ward absorption fires `CUSTOM` with the absorbed damage as a raw
+  amount: the gain handler is skipped for that grant, while share routing
+  and the global gain multiplier still apply. The award needs the ward's
+  **caster**, so `Ward` records the casting player's UUID when it is
+  applied (including when the ward protects another entity), preserves it
+  when a partially spent pool is re-put, and lets the last caster to
+  refresh a ward own the pool. At absorption time the UUID resolves to
+  the caster's `ServerPlayer` from the ward's level; an offline or
+  removed caster grants nothing. Wards are runtime-only state, so caster
+  ownership never needs persisting.
+
+Ability Core's `mastery.enabled` and `mastery.globalGainMultiplier`
+govern the system; Technomagy adds no toggle of its own. Every number in
+this decision is initial and to be tuned.
 
 ## Integration foundations
 

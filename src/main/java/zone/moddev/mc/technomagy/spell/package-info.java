@@ -7,15 +7,21 @@
  *
  * Server-authoritative player spell execution and Ability Core integration (D69-D70).
  *
+ * Layer-one spell mastery (D79): {@code SpellMastery} declares every spell's Ability Core mastery
+ * contract at construction and owns the award sites for casts, Lightning's hits and kills, and
+ * Ward's damage absorption, including the caster UUID a ward records.
+ *
  * <p>
- * Effects consume the agreed first-cast runtime policy. Unless the server disables payment, each
- * cast is validated, then charged its configured per-element cost from the caster's personal pools,
- * then applied; ineffective casts are refunded ({@code SpellPayment}, D76). D70's LeyLines reserves
- * are created on login: six elemental pools, capacity ten, initially three. Having a focus unlocks
- * recharge permanently: {@code PoolRecharge} adds a unit to a random non-full pool every pulse
- * (D77). Existing pools retain their balances and settings. This package may depend on mana,
- * Minecraft, LeyLines, and Ability Core, but must not load client classes on dedicated servers.
- * Timed state is owned by the server lifecycle. Recipe processing uses the live recipe manager
- * rather than maintaining private copies of crushing or smelting data.
+ * Effects consume the agreed first-cast runtime policy, now served by Ability Core's external
+ * charging: {@code SpellResources} presents the six personal pools as resource pairs and prices
+ * each cast from server config through the {@code technomagy:spell_cost} resolver, Ability Core
+ * refuses unaffordable casts before the handler runs and charges the validated snapshot after the
+ * effect reports {@code ACTED} (D78). D70's LeyLines reserves are created on login: six elemental
+ * pools, capacity ten, initially three. Having a focus unlocks recharge permanently:
+ * {@code PoolRecharge} adds a unit to a random non-full pool every pulse (D77). Existing pools
+ * retain their balances and settings. This package may depend on mana, Minecraft, LeyLines, and
+ * Ability Core, but must not load client classes on dedicated servers. Timed state is owned by the
+ * server lifecycle. Recipe processing uses the live recipe manager rather than maintaining private
+ * copies of crushing or smelting data.
  */
 package zone.moddev.mc.technomagy.spell;

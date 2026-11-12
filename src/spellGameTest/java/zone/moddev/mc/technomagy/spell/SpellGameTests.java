@@ -1,5 +1,6 @@
 package zone.moddev.mc.technomagy.spell;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +39,13 @@ import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationResult;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
+import org.bitwisemadness.abilitycore.api.Affordability;
+import org.bitwisemadness.abilitycore.api.AmountResolvers;
+import org.bitwisemadness.abilitycore.api.MasteryAwards;
+import org.bitwisemadness.abilitycore.api.MasteryTrigger;
+import org.bitwisemadness.abilitycore.api.MasteryView;
+import org.bitwisemadness.abilitycore.api.ResourceCost;
+import org.bitwisemadness.abilitycore.api.ResourceProviders;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 
 import zone.moddev.mc.skysleylines.api.LeyLinesApi;
@@ -48,7 +56,10 @@ import zone.moddev.mc.skysleylines.api.PowerRequest;
 import zone.moddev.mc.technomagy.Technomagy;
 import zone.moddev.mc.technomagy.mana.ManaType;
 
-/** Dedicated-server, actual-pipeline checks for each of the sixteen approved effects. */
+/**
+ * Dedicated-server, actual-pipeline checks for each of the sixteen approved effects, their payment
+ * (D76-D78), and their mastery attribution (D79).
+ */
 @GameTestHolder("technomagy")
 @PrefixGameTestTemplate(false)
 @EventBusSubscriber(modid = "technomagy", bus = EventBusSubscriber.Bus.MOD)
@@ -684,7 +695,7 @@ public final class SpellGameTests {
         h.succeed();
     }
 
-    /** Shortfalls and invalid targets are refused before any pool changes. */
+    /** Shortfalls, fractional prices, and invalid targets are refused before any pool changes. */
     @GameTest(template = "empty")
     public static void paymentRefusesShortfall(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -698,21 +709,37 @@ public final class SpellGameTests {
                 "Unaffordable Mend was not refused as unaffordable: " + result);
             h.assertTrue(player.getHealth() == 10, "Unaffordable Mend still healed");
             assertBalances(h, player, "A refused shortfall changed a pool", 3, 3, 3, 3, 0, 3);
+            // A fractional price cannot be charged in whole units: the provider must fail it
+            // closed as UNKNOWN before the handler, never approve it for units() to zero out.
+            var fractional = ResourceProviders.get(SpellResources.resourceId(ManaType.WATER))
+                .orElseThrow()
+                .check(PlayerSpell.MEND.id(), player, 0.5);
+            h.assertTrue(fractional.state() == Affordability.State.UNKNOWN,
+                "A fractional price must fail closed as UNKNOWN, got " + fractional.state());
             player.setHealth(player.getMaxHealth());
             var invalid = run(player, PlayerSpell.SHROUD);
             h.assertTrue(invalid.isSuccess(), "Affordable Shroud was refused: " + invalid);
+            // Restore Light so the next cast is affordable: Ability Core's RESOURCE phase answers
+            // before the handler runs (D78), so a drained pool would otherwise mask the handler's
+            // own invalid-target refusal with REFUSED_UNAFFORDABLE.
+            h.assertTrue(power.setBalance(player.getUUID(), Technomagy.LIGHT, 3,
+                new PowerRequest.Consumer(Technomagy.LIGHT)).succeeded(),
+                "Could not restore Light");
             var full = run(player, PlayerSpell.MEND);
             h.assertTrue(full.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
                 "Mend at full health was not an invalid target: " + full);
             assertBalances(h, player, "Only the successful Shroud may be charged",
-                3, 3, 2, 3, 0, 2);
+                3, 3, 2, 3, 3, 2);
         });
         h.succeed();
     }
 
-    /** A spend vetoed partway through returns the pools already charged. */
+    /**
+     * A spend vetoed after the effect has acted cannot be rolled back: the cast stands and only the
+     * vetoed pool goes unpaid (D78's accepted post-activation charge semantics).
+     */
     @GameTest(template = "empty")
-    public static void paymentRollsBackVetoedSpend(GameTestHelper h) {
+    public static void paymentCastStandsWhenSpendVetoed(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
         withPayment(() -> {
             player.setHealth(10);
@@ -723,16 +750,19 @@ public final class SpellGameTests {
             } finally {
                 PaymentVetoes.LIGHT_SPEND.set(null);
             }
-            h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_RESTRICTED,
-                "Vetoed payment was not refused as restricted: " + holder.result);
-            h.assertTrue(player.getHealth() == 10, "Vetoed payment still healed");
-            assertBalances(h, player, "Water was not rolled back after the Light veto",
-                3, 3, 3, 3, 3, 3);
+            h.assertTrue(holder.result.isSuccess(),
+                "Vetoed payment refused a cast that had already acted: " + holder.result);
+            h.assertTrue(player.getHealth() > 10, "Vetoed payment undid the heal");
+            assertBalances(h, player, "Water must be charged and the vetoed Light left alone",
+                3, 3, 3, 2, 3, 3);
         });
         h.succeed();
     }
 
-    /** A validated effect that does nothing at application time is refunded. */
+    /**
+     * A validated effect that does nothing at application time never reaches Ability Core's
+     * post-activation charge, so no pool changes (D78).
+     */
     @GameTest(template = "empty")
     public static void paymentRefundsIneffectiveCast(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -748,12 +778,16 @@ public final class SpellGameTests {
             h.assertTrue(holder.result.outcome() == ActivationOutcome.REFUSED_INVALID_TARGET,
                 "Cancelled heal was not refused: " + holder.result);
             h.assertTrue(player.getHealth() == 10, "Cancelled heal changed health");
-            assertBalances(h, player, "Ineffective Mend was not refunded", 3, 3, 3, 3, 3, 3);
+            assertBalances(h, player, "An ineffective Mend changed a pool", 3, 3, 3, 3, 3, 3);
         });
         h.succeed();
     }
 
-    /** A spell configured to cost nothing is refused rather than cast for free. */
+    /**
+     * A spell configured to cost nothing is refused rather than cast for free; a declared list that
+     * drops or duplicates a pool id, or a foreign ability naming the resolver, is rejected
+     * fail-closed instead of priced at a quietly different list (D78).
+     */
     @GameTest(template = "empty")
     public static void paymentRefusesZeroCost(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -774,7 +808,49 @@ public final class SpellGameTests {
             h.assertTrue(player.getHealth() == 10, "Zero-cost Mend still healed");
             assertBalances(h, player, "Zero-cost refusal changed a pool", 3, 3, 3, 3, 3, 3);
         });
+        var resolver = AmountResolvers.get(SpellResources.COST_RESOLVER).orElseThrow();
+        var request = ActivationRequest.of(PlayerSpell.MEND.id(), ActivationSource.DIRECT_SLOT);
+        var water = new ResourceCost(SpellResources.resourceId(ManaType.WATER), 1.0);
+        var light = new ResourceCost(SpellResources.resourceId(ManaType.LIGHT), 1.0);
+        assertResolverRejected(h, resolver, List.of(water, light), request, player,
+            "A declared list missing pool ids must be rejected");
+        var duplicated = new java.util.ArrayList<ResourceCost>();
+        duplicated.add(water);
+        duplicated.add(water);
+        for (ManaType flavor : ManaType.FLAVORS) {
+            if (flavor != ManaType.WATER && flavor != ManaType.DARK) {
+                duplicated.add(new ResourceCost(SpellResources.resourceId(flavor), 1.0));
+            }
+        }
+        assertResolverRejected(h, resolver, duplicated, request, player,
+            "A duplicated pool id must be rejected");
+        var foreign = ActivationRequest.of(
+            ResourceLocation.fromNamespaceAndPath("othermod", "spell"),
+            ActivationSource.DIRECT_SLOT);
+        assertResolverRejected(h, resolver, List.of(water, light), foreign, player,
+            "A foreign ability naming the resolver must be rejected");
+        var six = new java.util.ArrayList<ResourceCost>();
+        for (ManaType flavor : ManaType.FLAVORS) {
+            six.add(new ResourceCost(SpellResources.resourceId(flavor), 1.0));
+        }
+        h.assertTrue(resolver.resolve(six, request, player, null).size() == six.size(),
+            "A complete six-pool list must price");
         h.succeed();
+    }
+
+    /**
+     * Asserts one resolver input is rejected fail-closed with an {@link IllegalArgumentException}.
+     */
+    private static void assertResolverRejected(GameTestHelper h,
+        AmountResolvers.AmountResolver resolver, List<ResourceCost> declared,
+        ActivationRequest request, ServerPlayer player, String message) {
+        boolean threw = false;
+        try {
+            resolver.resolve(declared, request, player, null);
+        } catch (IllegalArgumentException expected) {
+            threw = true;
+        }
+        h.assertTrue(threw, message);
     }
 
     /** Creative casters cast without being charged (D76). */
@@ -788,6 +864,99 @@ public final class SpellGameTests {
             h.assertTrue(player.getHealth() > 10, "Creative Mend did not heal");
             assertBalances(h, player, "A creative caster was charged", 3, 3, 3, 3, 3, 3);
         });
+        h.succeed();
+    }
+
+    /** A successful cast grants mastery priced from the spell's configured cost (D79). */
+    @GameTest(template = "empty")
+    public static void masteryActivationGain(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        caster.setHealth(10);
+        cast(h, caster, PlayerSpell.MEND);
+        double xp = MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp();
+        h.assertTrue(xp == 2.0,
+            "Mend activation must grant its configured cost total (2 units), got " + xp);
+        h.succeed();
+    }
+
+    /** Lightning's bolt grants HIT, and KILL when it brings the target down (D79). */
+    @GameTest(template = "empty")
+    public static void masteryLightningHitAndKill(GameTestHelper h) {
+        Husk struck = target(h);
+        ServerPlayer caster = player(h, PlayerSpell.LIGHTNING);
+        cast(h, caster, PlayerSpell.LIGHTNING);
+        double afterHit = MasteryView.of(caster, PlayerSpell.LIGHTNING.id()).ownXp();
+        h.assertTrue(afterHit == 3.0,
+            "A damaging strike must grant activation (2) plus HIT (1), got " + afterHit);
+        // A freshly hurt target is inside vanilla's damage cooldown, so the killing strike
+        // lands on a new one-HP husk instead of the same-tick second hit being refused.
+        struck.discard();
+        Husk dying = target(h);
+        dying.setHealth(1.0F);
+        cast(h, caster, PlayerSpell.LIGHTNING);
+        double afterKill = MasteryView.of(caster, PlayerSpell.LIGHTNING.id()).ownXp();
+        h.assertTrue(afterKill == 7.0,
+            "A killing strike must grant activation (2) plus KILL (2), got " + afterKill);
+        h.succeed();
+    }
+
+    /**
+     * A ward's absorbed damage credits the casting player's mastery even though the ward protects
+     * another entity (D79's caster ownership) - and only for damage that applies: a hit vanilla
+     * discards inside its invulnerability frames drains the pool without any credit, and the ward's
+     * own caster earns nothing from hitting what they warded (review of D79).
+     */
+    @GameTest(template = "empty")
+    public static void masteryWardAbsorption(GameTestHelper h) {
+        Husk husk = target(h);
+        ServerPlayer caster = player(h, PlayerSpell.WARD);
+        // A landed hit puts the husk into vanilla's invulnerability frames (lastHurt 4).
+        h.assertTrue(husk.hurt(h.getLevel().damageSources().magic(), 4), "First hit must land");
+        float health = husk.getHealth();
+        cast(h, caster, PlayerSpell.WARD);
+        double afterCast = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterCast == 2.0,
+            "Ward activation must grant its configured cost total (2 units), got " + afterCast);
+        // A same-size hit inside those frames is discarded by vanilla: the ward's pool is spent
+        // on nothing, so no mastery may be credited for it.
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
+            "A same hit inside the frames must be discarded");
+        h.assertTrue(husk.getHealth() == health, "The discarded hit changed health");
+        double afterDiscard = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterDiscard == 2.0,
+            "Damage vanilla discarded must not be credited, got " + afterDiscard);
+        // Frames over: the same hit lands and the ward absorbs it whole (the discarded hit above
+        // already spent half the pool, so this one empties it).
+        husk.invulnerableTime = 0;
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
+            "Ward did not absorb damage");
+        h.assertTrue(husk.getHealth() == health, "Absorbed damage changed health");
+        double afterAbsorb = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterAbsorb == 6.0,
+            "Absorbing 4 damage must grant 4 raw mastery to the ward's caster, got "
+                + afterAbsorb);
+        // The ward's own caster farming their warded target earns nothing: a fresh ward (the
+        // probes above spent the first pool) takes the hit without any credit.
+        cast(h, caster, PlayerSpell.WARD);
+        double beforeSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().playerAttack(caster), 4),
+            "The caster's own hit must still be absorbed");
+        double afterSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterSelf == beforeSelf,
+            "The ward's own caster must not earn from their warded target, got " + afterSelf);
+        h.succeed();
+    }
+
+    /** Core ignores an award for a trigger the spell's spec did not declare (D79). */
+    @GameTest(template = "empty")
+    public static void masteryIgnoresUndeclaredTrigger(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        MasteryAwards.award(caster, PlayerSpell.MEND.id(), MasteryTrigger.KILL);
+        h.assertTrue(MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp() == 0.0,
+            "An undeclared KILL trigger granted XP");
+        MasteryAwards.award(caster, PlayerSpell.MEND.id(), MasteryTrigger.ACTIVATION, 5.0);
+        h.assertTrue(MasteryView.of(caster, PlayerSpell.MEND.id()).ownXp() == 5.0,
+            "A declared ACTIVATION trigger did not grant its raw amount");
         h.succeed();
     }
 

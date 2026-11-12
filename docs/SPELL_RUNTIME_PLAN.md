@@ -127,16 +127,30 @@ one Air), Growth one Water, Light, and Earth, and Life & death one Light and one
 Dark. A spell whose six costs are all zero is reported as an error when the
 config loads and is refused while payment is enabled. It is never cast for free.
 
-Each handler first validates its target without changing the world. An invalid
-cast is refused before any charge. The caster is then charged, and only then is
-the effect applied. Ley Lines 0.5.6 spends one currency per call, and each spend
-can be vetoed by other mods, so `SpellPayment` checks every pool first, spends
-them in order, and returns earlier spends if a later one fails. Some outcomes are
-only decided when the effect is applied: a cancelled damage or heal event, a
-refused block or entity, or a Growth roll with no extra ticks. If the effect then
-does nothing, the charge is refunded and the cast is refused. Ley Lines can also
-veto a return, and it will not raise a balance above capacity. When a return
-fails, an error names the player, pool, and units.
+Charging runs through Ability Core's EXTERNAL model (D78). `SpellResources`
+declares one resource pair per pool, `technomagy:<flavor>`, backed by Ley Lines'
+`PlayerPowerService`, and every spell definition declares all six pools at its
+input-stream amounts - display defaults, because the per-world server config is
+not loaded when definitions register. On each cast Ability Core's
+`technomagy:spell_cost` amount resolver re-prices those entries from the server
+config, then validates every selected entry fail-closed before the handler
+runs: the pool must exist, be active, and hold the price. An invalid target or
+an unaffordable cast is refused before the handler runs and before any pool is
+touched.
+
+The handler only prepares and applies the effect. Ability Core charges the
+validated snapshots at its single charge site after the effect reports ACTED, so
+outcomes decided only at application time - a cancelled damage or heal event, a
+refused block or entity, a Growth roll with no extra ticks - never cost
+anything: no effect is paid for without happening, and no refund is needed. A
+spend vetoed or refused after the effect has acted cannot be rolled back: the
+cast stands, that pool alone goes unpaid, and every failure names the player,
+pool, units, and status: a warning for a veto, a balance race, or an inactive
+pool, an error for every other status, so the build's ERROR log gate still
+catches real defects. The refund half of each pair still
+returns units to a caller that asks (`ResourceConsumers.refund`); Ley Lines can
+refuse a return, and it will not raise a balance above capacity, so a failed
+return is an error naming the player, pool, and units.
 
 ### Recharge
 
@@ -148,6 +162,27 @@ who is alive and not spectating
 gains `recharge.unitsPerPulse` (default 1) units in one random pool that is
 active and below capacity. The gain is clamped to the remaining room, and nothing
 happens when every pool is full.
+
+### Mastery
+
+Layer-one spell mastery (D79) declares every spell's Ability Core mastery
+contract from `SpellMastery.declare()` at construction, beside the pool
+resource pairs. Grants land on the spell's own ability target, priced by
+the `technomagy:spell_effort` gain handler: the spell's configured cost
+total (read whether or not payment is enabled) times the trigger's
+weight - `ACTIVATION` 1.0, `HIT` 0.5, `KILL` 1.0 - with a base effort of
+2.0 when no positive cost is configured. All weights are initial and to
+be tuned. Ability Core fires `ACTIVATION` itself after every successful
+cast; `CUSTOM` grants bypass the handler with a raw amount.
+
+Technomagy fires the rest itself, through `SpellMastery`'s award sites:
+Lightning's bolt grants `HIT` when it damages its target and `KILL` when
+it brings that target to zero health (one strike, one award), and each
+Ward absorption grants `CUSTOM` with the absorbed damage as a raw amount
+to the ward's caster - the `Ward` record carries the casting player's
+UUID, preserved across refreshes and owned by the last caster to refresh,
+resolved to the online player at absorption time. An award for a trigger
+the spell's spec did not declare is ignored by core.
 
 ### Verification
 
@@ -163,13 +198,16 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 35 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 39 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
-Ward/Steam interaction, and the actual focus air/block-use paths. Five payment
+Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
-target without a charge, rolling back a vetoed spend, refunding an effect cancelled
-at application time, refusing an all-zero cost, and exempting creative
-casters. Two recharge checks
+target without a charge, a spend vetoed after the effect has acted leaving the
+cast standing with only that pool unpaid, an effect cancelled at application
+time never being charged, refusing an all-zero cost, and exempting creative
+casters. Four mastery checks cover activation gain priced from the configured
+cost, Lightning's HIT then KILL awards, Ward absorption crediting the ward's
+caster, and core ignoring an undeclared trigger. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime

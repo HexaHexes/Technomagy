@@ -72,10 +72,11 @@ import zone.moddev.mc.technomagy.mana.SpellEngine;
  *
  * <p>
  * All target coordinates are computed on the server. Clients cannot supply damage, duration,
- * radius, or arbitrary target positions. Casts are validated before the caster is charged from
- * their personal pools through {@link SpellPayment} (D76). Timed wards/mist are owned by this
- * runtime and cleared at server shutdown; ordinary status effects and scheduled temporary blocks
- * use Minecraft's own persistence.
+ * radius, or arbitrary target positions. Payment is Ability Core's: the pipeline prices the
+ * declared pool costs, refuses unaffordable casts before this handler runs, and charges the
+ * caster's personal pools at its single post-activation charge site (D78). Timed wards/mist are
+ * owned by this runtime and cleared at server shutdown; ordinary status effects and scheduled
+ * temporary blocks use Minecraft's own persistence.
  */
 final class SpellRuntime {
     private static final TagKey<Block> GROWTH_EXCLUDED = TagKey.create(
@@ -85,24 +86,25 @@ final class SpellRuntime {
     private final List<Mist> mists = new ArrayList<>();
 
     /**
-     * Validates the held casting device (D74), computes targets, charges the caster (D76), and
-     * applies one registered ability.
+     * Validates the held casting device (D74), computes targets, and applies one registered
+     * ability. Ability Core charges the caster's personal pools afterwards (D78).
      *
-     * <h2>Validate, charge, apply</h2>
+     * <h2>Validate, apply, charge</h2>
      *
      * <p>
      * Every handler is split in two. {@code prepare*} methods check everything that can be checked
      * without changing the world (target presence, protection and placement vetoes, recipe outputs,
      * receiver acceptance) and return the {@link Effect} to apply, or empty when the cast has no
-     * valid target. Only then is the caster charged, so an invalid cast never costs anything and
-     * never needs a refund.
+     * valid target. Ability Core prices the declared costs, refuses unaffordable casts before the
+     * handler runs, and charges the validated snapshot only after this handler reports
+     * {@link ActivationResult#ACTED}, so an invalid cast never costs anything.
      *
      * <p>
      * Some outcomes are decided only at application time: damage, healing, and status effects can
      * be cancelled by events or rejected by the target; block and entity placement can still be
      * refused; Growth's extra ticks are random. When the applied effect reports that it did
-     * nothing, the charge is {@linkplain SpellPayment#refund refunded} and the cast is refused, so
-     * no effect is ever paid for without happening.
+     * nothing, the cast is refused instead of acting, and the post-activation charge never runs -
+     * no effect is ever paid for without happening (D78).
      *
      * @param spell
      *            the registered spell being activated
@@ -110,8 +112,8 @@ final class SpellRuntime {
      *            Ability Core's request; its ability ID must match the spell
      * @param player
      *            the caster
-     * @return {@link ActivationResult#ACTED} when the effect happened and was paid for, otherwise
-     *         the refusal
+     * @return {@link ActivationResult#ACTED} when the effect happened, triggering Ability Core's
+     *         post-activation charge; otherwise the refusal
      * @throws IllegalStateException
      *             if called off the server thread
      */
@@ -128,6 +130,12 @@ final class SpellRuntime {
             || !player.isAlive()
             || !request.abilityId().equals(spell.id())) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_RESTRICTED);
+        }
+        if (SpellConfig.PAYMENT_ENABLED.get() && !player.isCreative()
+            && SpellConfig.cost(spell).isEmpty()) {
+            // Already reported when the config loaded; refusing keeps a misconfigured spell from
+            // being free (D76).
+            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
         }
         var engine = new SpellEngine<>(
             new SpellElements<>(
@@ -176,7 +184,7 @@ final class SpellRuntime {
                     SpellConfig.CONSTRAINT_AMPLIFIER.get());
             case WARD -> {
                 LivingEntity warded = target.living() == null ? player : target.living();
-                yield Optional.of(() -> ward(warded));
+                yield Optional.of(() -> ward(player, warded));
             }
             case ENTOMB -> prepareEntomb(player, target.living());
             case REVEAL -> prepareReveal(player);
@@ -210,15 +218,7 @@ final class SpellRuntime {
         if (effect.isEmpty()) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
         }
-        SpellPayment.Charge charge;
-        switch (SpellPayment.charge(player, spell)) {
-            case SpellPayment.Outcome.Refused refused -> {
-                return ActivationResult.refused(refused.outcome());
-            }
-            case SpellPayment.Outcome.Paid paid -> charge = paid.charge();
-        }
         if (!effect.get().apply()) {
-            SpellPayment.refund(player, spell, charge);
             return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
         }
         return ActivationResult.ACTED;
@@ -269,7 +269,9 @@ final class SpellRuntime {
      * Only the target's presence is validated. Whether the effect lands is decided by
      * {@link LivingEntity#addEffect}: it fires {@code MobEffectEvent.Applicable} and declines when
      * the target already has a stronger or longer instance. Checking that in advance would fire the
-     * event twice or duplicate vanilla's update rules, so the applied result decides the refund.
+     * event twice or duplicate vanilla's update rules, so the applied result decides instead: a
+     * declined effect refuses the cast before Ability Core's charge site, leaving every pool
+     * untouched (D78).
      *
      * @return the effect, or empty without a living target
      */
@@ -402,17 +404,22 @@ final class SpellRuntime {
 
     /**
      * Magical strike without vanilla lightning's unrelated fire/weather/transformation effects.
-     * Always valid: with no living target it is a visual strike at the aimed position.
+     * Always valid: with no living target it is a visual strike at the aimed position. A strike
+     * that damages grants Lightning's mastery experience - {@code HIT}, or {@code KILL} when it
+     * brings the target to zero health; one strike is one award (D79). The award runs only once the
+     * whole strike succeeded: a bolt factory throw must not leave mastery credited for a cast the
+     * pipeline reports as failed (review of D79).
      *
      * @return whether the target was damaged, or, without a target, whether the bolt appeared
      */
     private boolean lightning(ServerPlayer player, Target target) {
-        if (target.living() != null
-            && !target.living()
-                .hurt(
-                    player.damageSources().indirectMagic(player, player),
-                    SpellConfig.DAMAGE.get().floatValue())) {
-            return false;
+        LivingEntity living = target.living();
+        if (living != null) {
+            if (!living.hurt(
+                player.damageSources().indirectMagic(player, player),
+                SpellConfig.DAMAGE.get().floatValue())) {
+                return false;
+            }
         }
         var bolt = EntityType.LIGHTNING_BOLT.create(player.serverLevel());
         if (bolt == null) {
@@ -421,6 +428,9 @@ final class SpellRuntime {
         bolt.moveTo(target.position());
         bolt.setVisualOnly(true);
         boolean visual = player.serverLevel().addFreshEntity(bolt);
+        if (living != null) {
+            SpellMastery.awardStrike(player, living.getHealth() <= 0.0F);
+        }
         return target.living() != null || visual;
     }
 
@@ -472,12 +482,21 @@ final class SpellRuntime {
         return true;
     }
 
-    /** Refreshes this runtime's shield without changing vanilla absorption or health. */
-    private boolean ward(LivingEntity entity) {
+    /**
+     * Refreshes this runtime's shield without changing vanilla absorption or health.
+     *
+     * @param caster
+     *            the player casting, recorded so absorbed damage credits their mastery (D79); the
+     *            last caster to refresh a ward owns its pool
+     * @param entity
+     *            the warded entity, which may be another living target rather than the caster
+     */
+    private boolean ward(ServerPlayer caster, LivingEntity entity) {
         wards.put(
             entity.getUUID(),
             new Ward(
                 (ServerLevel) entity.level(),
+                caster.getUUID(),
                 entity.level().getGameTime() + SpellConfig.DURATION.get(),
                 SpellConfig.SHIELD.get().floatValue()));
         return true;
@@ -617,8 +636,8 @@ final class SpellRuntime {
      * Validation collects every eligible plant in the 9x9 layer around the target; with none, the
      * cast is refused before payment. The effect re-checks each position (another plant's random
      * tick can change a neighbor) and applies imbalanced mortality or the fractional tick
-     * multiplier. Both are random, so a paid cast can still change nothing; the effect reports
-     * that, and the cast is refunded.
+     * multiplier. Both are random, so a validated cast can still change nothing; the effect reports
+     * that, the cast is refused, and no pool is ever charged (D78).
      *
      * @return the effect, or empty when no eligible plant is in range
      */
@@ -764,13 +783,19 @@ final class SpellRuntime {
         }
     }
 
-    /** Consumes this runtime's ward pool and breaks an attacker's Shroud on hostile action. */
+    /**
+     * Consumes this runtime's ward pool and breaks an attacker's Shroud on hostile action. Each
+     * absorbed hit credits the ward's caster with the absorbed amount as mastery experience (D79) -
+     * but only for damage that actually applies: a hit vanilla discards inside its invulnerability
+     * frames and a hit by the ward's own caster drain the pool without any credit (review of D79).
+     */
     @SubscribeEvent
     public void damage(LivingIncomingDamageEvent event) {
         if (event.getEntity().level().isClientSide()) {
             return;
         }
-        if (event.getSource().getEntity() instanceof LivingEntity attacker) {
+        Entity sourceEntity = event.getSource().getEntity();
+        if (sourceEntity instanceof LivingEntity attacker) {
             attacker.removeEffect(SpellContent.SHROUD);
         }
         Ward ward = wards.get(event.getEntity().getUUID());
@@ -783,7 +808,14 @@ final class SpellRuntime {
             } else {
                 wards.put(
                     event.getEntity().getUUID(),
-                    new Ward(ward.level(), ward.expires(), remaining));
+                    new Ward(ward.level(), ward.caster(), ward.expires(), remaining));
+            }
+            // The frames check mirrors vanilla's discard (its amount-vs-lastHurt half is not
+            // visible from here, so any active frame conservatively withholds the credit).
+            boolean discarded = event.getEntity().invulnerableTime > 0;
+            boolean selfCast = sourceEntity != null && sourceEntity.getUUID().equals(ward.caster());
+            if (!discarded && !selfCast) {
+                SpellMastery.awardAbsorption(ward.level(), ward.caster(), absorbed);
             }
             if (event.getAmount() <= 0) {
                 event.setCanceled(true);
@@ -862,8 +894,20 @@ final class SpellRuntime {
         BlockPos block, Direction face, Vec3 position, LivingEntity living, ItemEntity item) {
     }
 
-    /** Runtime-owned ward capacity and expiry in its level's game ticks. */
-    private record Ward(ServerLevel level, long expires, float remaining) {
+    /**
+     * Runtime-owned ward capacity, expiry and caster in its level's game ticks.
+     *
+     * @param level
+     *            the level holding the warded entity
+     * @param caster
+     *            the player who cast the ward - mastery for absorbed damage credits this UUID
+     *            (D79); the last caster to refresh a ward owns its pool
+     * @param expires
+     *            the game tick after which the pool stops absorbing
+     * @param remaining
+     *            health points the pool can still absorb
+     */
+    private record Ward(ServerLevel level, UUID caster, long expires, float remaining) {
     }
 
     /** Runtime-owned mist geometry and expiry in level game ticks. */
@@ -871,9 +915,10 @@ final class SpellRuntime {
     }
 
     /**
-     * A validated spell effect, applied only after the caster has paid. Applying it may still
-     * produce nothing when a decision made only at application time (an event, a refused placement,
-     * a random roll) prevents it; that case is refunded.
+     * A validated spell effect, applied by the handler before Ability Core charges the caster's
+     * pools (D78). Applying it may still produce nothing when a decision made only at application
+     * time (an event, a refused placement, a random roll) prevents it; that case refuses the cast
+     * before the charge site, so no pool is ever spent.
      */
     @FunctionalInterface
     private interface Effect {

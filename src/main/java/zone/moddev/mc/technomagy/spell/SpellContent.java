@@ -1,5 +1,6 @@
 package zone.moddev.mc.technomagy.spell;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,8 +35,11 @@ import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.ChargingModel;
+import org.bitwisemadness.abilitycore.api.ResourceCost;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
+
+import zone.moddev.mc.technomagy.mana.ManaType;
 
 /** Registers the approved focus, temporary blocks, and Ability Core provider (D69-D70). */
 public final class SpellContent {
@@ -78,7 +82,9 @@ public final class SpellContent {
     }
 
     /**
-     * Wires registries, server configuration, selection networking, and runtime lifecycle.
+     * Wires registries, server configuration, selection networking, and runtime lifecycle. The pool
+     * resource pairs are declared first, at construction, before Ability Core's registry events
+     * fire (D78), followed by every spell's mastery contract (D79).
      *
      * @param bus
      *            mod event bus
@@ -86,6 +92,8 @@ public final class SpellContent {
      *            owning mod container
      */
     public static void register(IEventBus bus, ModContainer container) {
+        SpellResources.declare();
+        SpellMastery.declare();
         ITEMS.register(bus);
         BLOCKS.register(bus);
         EFFECTS.register(bus);
@@ -96,8 +104,8 @@ public final class SpellContent {
         bus.addListener(SpellContent::creative);
         container.registerConfig(
             ModConfig.Type.SERVER, SpellConfig.SPEC, "technomagy-spells-server.toml");
-        bus.addListener(ModConfigEvent.Loading.class, SpellPayment::configChanged);
-        bus.addListener(ModConfigEvent.Reloading.class, SpellPayment::configChanged);
+        bus.addListener(ModConfigEvent.Loading.class, SpellConfig::configChanged);
+        bus.addListener(ModConfigEvent.Reloading.class, SpellConfig::configChanged);
         NeoForge.EVENT_BUS.register(RUNTIME);
         NeoForge.EVENT_BUS.addListener(PoolRecharge::tick);
         NeoForge.EVENT_BUS.addListener(PlayerManaPools::joined);
@@ -115,28 +123,48 @@ public final class SpellContent {
             AbilityRegistries.ABILITY_REGISTRY_KEY,
             helper -> {
                 for (PlayerSpell spell : PlayerSpell.values()) {
-                    helper.register(
-                        spell.id(),
-                        new AbilityDefinition(
-                            "spell.technomagy." + spell.id().getPath(),
-                            ResourceLocation.fromNamespaceAndPath(
-                                "minecraft", "textures/item/blaze_rod.png"),
-                            ResourceLocation.fromNamespaceAndPath(
-                                "technomagy", "spells"),
-                            ActivationType.INSTANT,
-                            List.of(),
-                            "all",
-                            "static",
-                            Set.of("spell"),
-                            Map.of()));
+                    helper.register(spell.id(), definition(spell));
                 }
             });
     }
 
     /**
-     * Publishes native handlers after construction. They use Ability Core's NATIVE charging model:
-     * Technomagy charges personal pools itself, between validation and application (D76), because
-     * Core's external charging runs after the effect and only logs a failed charge.
+     * Builds one spell's definition. The costs declare all six personal pools at the spell's
+     * default stream: the declared amounts are display defaults, and the
+     * {@code technomagy:spell_cost} resolver prices each cast from the server config, which is not
+     * loaded at registration time (D78). Declared costs are mandatory for EXTERNAL charging (D78).
+     *
+     * @param spell
+     *            the spell to describe
+     * @return the registry entry for {@code spell}
+     */
+    private static AbilityDefinition definition(PlayerSpell spell) {
+        List<ResourceCost> costs = new ArrayList<>(ManaType.FLAVORS.size());
+        for (ManaType element : ManaType.FLAVORS) {
+            costs.add(
+                new ResourceCost(
+                    SpellResources.resourceId(element),
+                    spell.inputUnits().getOrDefault(element, 0)));
+        }
+        return new AbilityDefinition(
+            "spell.technomagy." + spell.id().getPath(),
+            ResourceLocation.fromNamespaceAndPath(
+                "minecraft", "textures/item/blaze_rod.png"),
+            ResourceLocation.fromNamespaceAndPath(
+                "technomagy", "spells"),
+            ActivationType.INSTANT,
+            List.copyOf(costs),
+            "all",
+            SpellResources.COST_RESOLVER,
+            Set.of("spell"),
+            Map.of());
+    }
+
+    /**
+     * Publishes native handlers after construction with EXTERNAL charging: Ability Core prices the
+     * declared pool costs, validates affordability before activation, and charges the caster's
+     * personal pools at its single post-activation charge site (D78). The handler only prepares and
+     * applies the effect.
      */
     private static void setup(FMLCommonSetupEvent event) {
         event.enqueueWork(
@@ -145,7 +173,7 @@ public final class SpellContent {
                     AbilityCore.HANDLERS.register(
                         spell.id(),
                         (request, player) -> RUNTIME.cast(spell, request, player),
-                        ChargingModel.NATIVE);
+                        ChargingModel.EXTERNAL);
                 }
             });
     }
