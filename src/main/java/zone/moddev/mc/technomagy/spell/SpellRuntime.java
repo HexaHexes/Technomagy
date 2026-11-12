@@ -420,8 +420,8 @@ final class SpellRuntime {
     private boolean lightning(ServerPlayer player, Target target) {
         LivingEntity living = target.living();
         if (living != null) {
-            float damage = (float) (SpellConfig.DAMAGE.get()
-                * SpellMastery.powerMultiplier(player, PlayerSpell.LIGHTNING));
+            float damage = (float) SpellMastery
+                .power(player, PlayerSpell.LIGHTNING, SpellConfig.DAMAGE.get());
             if (!living.hurt(
                 player.damageSources().indirectMagic(player, player),
                 damage)) {
@@ -459,8 +459,8 @@ final class SpellRuntime {
             direction = player.getLookAngle();
         }
         direction = direction.normalize();
-        float strength = (float) (SpellConfig.IMPULSE.get()
-            * SpellMastery.powerMultiplier(player, PlayerSpell.STEAM));
+        float strength = (float) SpellMastery
+            .power(player, PlayerSpell.STEAM, SpellConfig.IMPULSE.get());
         var knockback = CommonHooks.onLivingKnockBack(
             living,
             strength,
@@ -512,8 +512,8 @@ final class SpellRuntime {
     private boolean ward(ServerPlayer caster, LivingEntity entity) {
         int ticks = SpellMastery.durationTicks(caster, PlayerSpell.WARD,
             SpellConfig.DURATION.get());
-        float shield = (float) (SpellConfig.SHIELD.get()
-            * SpellMastery.powerMultiplier(caster, PlayerSpell.WARD));
+        float shield = (float) SpellMastery
+            .power(caster, PlayerSpell.WARD, SpellConfig.SHIELD.get());
         wards.put(
             entity.getUUID(),
             new Ward(
@@ -654,8 +654,8 @@ final class SpellRuntime {
         if (target.getHealth() >= target.getMaxHealth()) {
             return Optional.empty();
         }
-        float amount = (float) (SpellConfig.HEAL.get()
-            * SpellMastery.powerMultiplier(player, PlayerSpell.MEND));
+        float amount = (float) SpellMastery
+            .power(player, PlayerSpell.MEND, SpellConfig.HEAL.get());
         return Optional.of(() -> {
             float before = target.getHealth();
             target.heal(amount);
@@ -691,6 +691,10 @@ final class SpellRuntime {
         }
         return Optional.of(() -> {
             boolean affected = false;
+            // One read for the whole 9x9 pass: the aggregate view is identical per plant
+            // (review of D80), so the loop must not rebuild it 81 times.
+            double tickScale = SpellMastery
+                .power(player, PlayerSpell.GROWTH, growth.tickMultiplier());
             for (BlockPos position : plants) {
                 if (!growable(player, position)) {
                     continue;
@@ -704,8 +708,7 @@ final class SpellRuntime {
                     }
                     continue;
                 }
-                double extra = growth.tickMultiplier()
-                    * SpellMastery.powerMultiplier(player, PlayerSpell.GROWTH) - 1;
+                double extra = tickScale - 1;
                 int opportunities = (int) Math.floor(extra);
                 if (level.random.nextDouble() < extra - opportunities) {
                     opportunities++;
@@ -767,8 +770,8 @@ final class SpellRuntime {
         if (!level.hasChunkAt(pos)) {
             return Optional.empty();
         }
-        int energy = (int) Math.round(SpellConfig.FE.get()
-            * SpellMastery.powerMultiplier(player, PlayerSpell.LIFE_AND_DEATH));
+        int energy = SpellMastery
+            .powerUnits(player, PlayerSpell.LIFE_AND_DEATH, SpellConfig.FE.get());
         var receiver = level.getCapability(Capabilities.EnergyStorage.BLOCK, pos, face);
         if (receiver == null || receiver.receiveEnergy(energy, true) <= 0) {
             return Optional.empty();

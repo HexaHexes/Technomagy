@@ -903,10 +903,10 @@ public final class SpellGameTests {
 
     /**
      * A ward's absorbed damage credits the casting player's mastery even though the ward protects
-     * another entity (D79's caster ownership) - raw absorption routes like any other grant (D80)
-     * - and only for damage that applies: a hit vanilla discards inside its invulnerability frames
-     * drains the pool without any credit, and the ward's own caster earns nothing from hitting
-     * what they warded (review of D79).
+     * another entity (D79's caster ownership) - raw absorption routes like any other grant (D80) -
+     * and only for damage that applies: a hit vanilla discards inside its invulnerability frames
+     * drains the pool without any credit, and the ward's own caster earns nothing from hitting what
+     * they warded (review of D79).
      */
     @GameTest(template = "empty")
     public static void masteryWardAbsorption(GameTestHelper h) {

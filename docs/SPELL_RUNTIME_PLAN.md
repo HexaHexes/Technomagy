@@ -189,12 +189,13 @@ grant - the effort handler's output and raw awards alike - routes 40%
 evenly across the spell's element buckets (`SUBCATEGORY`
 `technomagy:<flavor>`, one per element of its stream), 15% to its one
 role-school bucket (`shaping` / `striking` / `warding` / `veiling` /
-`vitality`), and keeps the 45% remainder on the spell itself. Sixteen
+`vitality`), and keeps the 45% remainder on the spell itself. Fourteen
 spells declare `POWER` (Lightning damage, Steam impulse, Mend heal,
 Ward shield, Growth tick multiplier, Life & Death energy) or
 `DURATION` (Constraint, Shroud, Leach, Mist, Ward, Radiance at
 `DURATION` ticks; Blight, Entomb, Reveal at `SHORT_DURATION` ticks;
-Ward takes both), read back through core's default curve
+Ward takes both; Erode and Forge declare neither), read back through
+core's default curve
 (`1 + 0.5 × (1 - e^(-0.01 × aggregateLevel))`) at each effect site - integer
 sinks rounded nearest half-up, float magnitudes unrounded. The
 `technomagy:spell_effort` handler multiplies its total by the spell's

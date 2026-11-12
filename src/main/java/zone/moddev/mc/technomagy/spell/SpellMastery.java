@@ -177,22 +177,6 @@ final class SpellMastery {
     }
 
     /**
-     * The POWER multiplier for one spell's next effect read (D80), resolved by core over the
-     * aggregate level on the default curve ({@code 1 + max x (1 - e^(-rate x aggregate))}). Returns
-     * exactly {@code 1.0} whenever core makes the read inert: system disabled, player or spec
-     * missing, or the axis not declared.
-     *
-     * @param player
-     *            the caster whose mastery the effect scales with
-     * @param spell
-     *            the spell being cast
-     * @return a multiplier {@code >= 1} to apply to a float magnitude
-     */
-    static double powerMultiplier(ServerPlayer player, PlayerSpell spell) {
-        return MasteryEffects.powerMultiplier(player, spell.id());
-    }
-
-    /**
      * Scales an int tick count by one spell's DURATION multiplier (D80), rounded to the nearest
      * half-up tick - the design's rounding rule for integer sinks, so a nominal duration never
      * changes when the multiplier is {@code 1.0}.
@@ -207,6 +191,38 @@ final class SpellMastery {
      */
     static int durationTicks(ServerPlayer player, PlayerSpell spell, int ticks) {
         return (int) Math.round(ticks * MasteryEffects.durationMultiplier(player, spell.id()));
+    }
+
+    /**
+     * Scales a float magnitude by one spell's POWER multiplier (D80) - the shared read behind the
+     * damage, impulse, shield and heal sites, so one curve change cannot leave them diverging.
+     *
+     * @param player
+     *            the caster whose mastery the effect scales with
+     * @param spell
+     *            the spell being cast
+     * @param magnitude
+     *            the configured float magnitude
+     * @return the scaled magnitude, unrounded (D80's float-magnitude rule)
+     */
+    static double power(ServerPlayer player, PlayerSpell spell, double magnitude) {
+        return magnitude * MasteryEffects.powerMultiplier(player, spell.id());
+    }
+
+    /**
+     * Scales an int sink by one spell's POWER multiplier (D80), rounded nearest half-up exactly
+     * like {@link #durationTicks} - Life & Death's configured energy amount.
+     *
+     * @param player
+     *            the caster whose mastery the effect scales with
+     * @param spell
+     *            the spell being cast
+     * @param units
+     *            the configured whole-unit amount
+     * @return the scaled amount in whole units
+     */
+    static int powerUnits(ServerPlayer player, PlayerSpell spell, int units) {
+        return (int) Math.round(units * MasteryEffects.powerMultiplier(player, spell.id()));
     }
 
     /**
@@ -294,8 +310,7 @@ final class SpellMastery {
      */
     private static List<MasteryTarget> elements(PlayerSpell spell) {
         return spell.inputUnits().keySet().stream()
-            .map(element -> MasteryTarget.subcategory(
-                ResourceLocation.parse(SpellResources.resourceId(element))))
+            .map(element -> MasteryTarget.subcategory(PlayerManaPools.currency(element)))
             .toList();
     }
 
