@@ -9,8 +9,8 @@ remain authoritative. All numeric values below would be server-configurable.
 - `technomagy:spell_focus` is a non-stackable casting device. Under D74,
   right-click casts the active Ability Hotbar slot; its management menu owns
   spell selection. Hotbar activation keys also work while holding a focus.
-- Ability Hotbar alpha.56 is required on both sides, pinned to its public GitHub
-  release artifact alongside Core alpha.42. The server validates the held item,
+- Ability Hotbar 1.0.1-alpha.03 is required on both sides, pinned to its public GitHub
+  release artifact alongside Core 1.1.0-alpha.02. The server validates the held item,
   target and range; each cast is one spell, with timed effects allowed to overlap.
   Clients send intent only.
 - Register the fifteen executable spell actions plus life-and-death in Ability
@@ -25,7 +25,7 @@ remain authoritative. All numeric values below would be server-configurable.
   pool setup on join: six elements, capacity 10 each, initially 3, no Raw pool.
   Existing pools are preserved. Having a focus unlocks recharge permanently
   (D77).
-- Use Ability Core alpha.42. No GitHub Packages credentials are configured here;
+- Use Ability Core 1.1.0-alpha.02. No GitHub Packages credentials are configured here;
   approved fallback is its exact public GitHub release artifact, resolved through
   a pinned repository declaration rather than committing a binary into this repo.
 - Put runtime handlers in `spell`, client UI in `spell.client`, and configuration
@@ -152,7 +152,7 @@ happens when every pool is full.
 ### Verification
 
 D74 verification: `build` and all 26 dedicated-server GameTests passed with
-Core alpha.42 and Hotbar alpha.56 installed. Coverage includes focus casting
+Core 1.1.0-alpha.02 and Hotbar 1.0.1-alpha.03 installed. Coverage includes focus casting
 from server-owned hotbar state, empty/foreign-slot refusal, offhand use,
 direct-slot activation through Core's payload-to-request conversion, and
 refusal without a held focus. The mock connection declares Hotbar's snapshot

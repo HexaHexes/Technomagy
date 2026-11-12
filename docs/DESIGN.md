@@ -674,7 +674,7 @@ heuristic checks run under `pureTest` and are required by Gradle `check`.
 **D69.** Implement the sixteen first player-cast effects, controls, identifiers,
 and tunable defaults in [SPELL_RUNTIME_PLAN.md](SPELL_RUNTIME_PLAN.md). Players
 use a spell-focus item with selection; each cast is one spell, but previously
-applied timed effects can overlap. Ability Core alpha.42 is resolved from its
+applied timed effects can overlap. Ability Core 1.1.0-alpha.02 is resolved from its
 pinned public GitHub release while package credentials are unavailable. Runtime
 code belongs in `spell` and `spell.client`.
 
@@ -723,9 +723,9 @@ does not make Raw castable or create a Raw player pool (D70). This selector does
 not itself implement director/prism linking or transfer.
 
 **D74.** Ability Hotbar owns overall player spell selection. Require
-`org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.0-alpha.56` on client and
+`org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.1-alpha.03` on client and
 server, resolved through its exact public GitHub release artifact, alongside
-Ability Core alpha.42. The hotbar's management menu replaces the focus's spell
+Ability Core 1.1.0-alpha.02. The hotbar's management menu replaces the focus's spell
 picker and spell-selection item data. Existing item spell-selection data is
 ignored; it does not override hotbar selection.
 
