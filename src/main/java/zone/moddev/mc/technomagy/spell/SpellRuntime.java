@@ -406,7 +406,9 @@ final class SpellRuntime {
      * Magical strike without vanilla lightning's unrelated fire/weather/transformation effects.
      * Always valid: with no living target it is a visual strike at the aimed position. A strike
      * that damages grants Lightning's mastery experience - {@code HIT}, or {@code KILL} when it
-     * brings the target to zero health; one strike is one award (D79).
+     * brings the target to zero health; one strike is one award (D79). The award runs only once the
+     * whole strike succeeded: a bolt factory throw must not leave mastery credited for a cast the
+     * pipeline reports as failed (review of D79).
      *
      * @return whether the target was damaged, or, without a target, whether the bolt appeared
      */
@@ -418,7 +420,6 @@ final class SpellRuntime {
                 SpellConfig.DAMAGE.get().floatValue())) {
                 return false;
             }
-            SpellMastery.awardStrike(player, living.getHealth() <= 0.0F);
         }
         var bolt = EntityType.LIGHTNING_BOLT.create(player.serverLevel());
         if (bolt == null) {
@@ -427,6 +428,9 @@ final class SpellRuntime {
         bolt.moveTo(target.position());
         bolt.setVisualOnly(true);
         boolean visual = player.serverLevel().addFreshEntity(bolt);
+        if (living != null) {
+            SpellMastery.awardStrike(player, living.getHealth() <= 0.0F);
+        }
         return target.living() != null || visual;
     }
 
@@ -781,14 +785,17 @@ final class SpellRuntime {
 
     /**
      * Consumes this runtime's ward pool and breaks an attacker's Shroud on hostile action. Each
-     * absorbed hit credits the ward's caster with the absorbed amount as mastery experience (D79).
+     * absorbed hit credits the ward's caster with the absorbed amount as mastery experience (D79) -
+     * but only for damage that actually applies: a hit vanilla discards inside its invulnerability
+     * frames and a hit by the ward's own caster drain the pool without any credit (review of D79).
      */
     @SubscribeEvent
     public void damage(LivingIncomingDamageEvent event) {
         if (event.getEntity().level().isClientSide()) {
             return;
         }
-        if (event.getSource().getEntity() instanceof LivingEntity attacker) {
+        Entity sourceEntity = event.getSource().getEntity();
+        if (sourceEntity instanceof LivingEntity attacker) {
             attacker.removeEffect(SpellContent.SHROUD);
         }
         Ward ward = wards.get(event.getEntity().getUUID());
@@ -803,7 +810,13 @@ final class SpellRuntime {
                     event.getEntity().getUUID(),
                     new Ward(ward.level(), ward.caster(), ward.expires(), remaining));
             }
-            SpellMastery.awardAbsorption(ward.level(), ward.caster(), absorbed);
+            // The frames check mirrors vanilla's discard (its amount-vs-lastHurt half is not
+            // visible from here, so any active frame conservatively withholds the credit).
+            boolean discarded = event.getEntity().invulnerableTime > 0;
+            boolean selfCast = sourceEntity != null && sourceEntity.getUUID().equals(ward.caster());
+            if (!discarded && !selfCast) {
+                SpellMastery.awardAbsorption(ward.level(), ward.caster(), absorbed);
+            }
             if (event.getAmount() <= 0) {
                 event.setCanceled(true);
             }

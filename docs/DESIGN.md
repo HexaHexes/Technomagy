@@ -893,7 +893,12 @@ tuned:
 A spell whose configured costs are all zero - configuration D76 already
 reports and refuses while payment is enabled - prices its effort at the
 base `2.0` instead of `0`, so a misconfigured spell still progresses
-rather than silently granting nothing.
+rather than silently granting nothing. An id that is not one of the
+sixteen spells raises an error instead: the handler throws, core logs the
+misbehaving handler and falls back to the static base gain it owns, so a
+foreign spec that borrows `technomagy:spell_effort` is loud rather than
+silently priced at `2.0` (recorded here because D79 covered only the
+all-zero case).
 
 Trigger sets are declared intent: Lightning alone declares `HIT`/`KILL`,
 Ward alone declares `CUSTOM`, every spell declares `ACTIVATION`, and an

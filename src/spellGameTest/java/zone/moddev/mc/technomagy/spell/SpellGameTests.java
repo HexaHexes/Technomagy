@@ -902,23 +902,48 @@ public final class SpellGameTests {
 
     /**
      * A ward's absorbed damage credits the casting player's mastery even though the ward protects
-     * another entity (D79's caster ownership).
+     * another entity (D79's caster ownership) - and only for damage that applies: a hit vanilla
+     * discards inside its invulnerability frames drains the pool without any credit, and the ward's
+     * own caster earns nothing from hitting what they warded (review of D79).
      */
     @GameTest(template = "empty")
     public static void masteryWardAbsorption(GameTestHelper h) {
         Husk husk = target(h);
         ServerPlayer caster = player(h, PlayerSpell.WARD);
+        // A landed hit puts the husk into vanilla's invulnerability frames (lastHurt 4).
+        h.assertTrue(husk.hurt(h.getLevel().damageSources().magic(), 4), "First hit must land");
+        float health = husk.getHealth();
         cast(h, caster, PlayerSpell.WARD);
         double afterCast = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
         h.assertTrue(afterCast == 2.0,
             "Ward activation must grant its configured cost total (2 units), got " + afterCast);
-        float health = husk.getHealth();
-        husk.hurt(h.getLevel().damageSources().magic(), 4);
-        h.assertTrue(husk.getHealth() == health, "Ward did not absorb damage");
+        // A same-size hit inside those frames is discarded by vanilla: the ward's pool is spent
+        // on nothing, so no mastery may be credited for it.
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
+            "A same hit inside the frames must be discarded");
+        h.assertTrue(husk.getHealth() == health, "The discarded hit changed health");
+        double afterDiscard = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterDiscard == 2.0,
+            "Damage vanilla discarded must not be credited, got " + afterDiscard);
+        // Frames over: the same hit lands and the ward absorbs it whole (the discarded hit above
+        // already spent half the pool, so this one empties it).
+        husk.invulnerableTime = 0;
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().magic(), 4),
+            "Ward did not absorb damage");
+        h.assertTrue(husk.getHealth() == health, "Absorbed damage changed health");
         double afterAbsorb = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
         h.assertTrue(afterAbsorb == 6.0,
             "Absorbing 4 damage must grant 4 raw mastery to the ward's caster, got "
                 + afterAbsorb);
+        // The ward's own caster farming their warded target earns nothing: a fresh ward (the
+        // probes above spent the first pool) takes the hit without any credit.
+        cast(h, caster, PlayerSpell.WARD);
+        double beforeSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(!husk.hurt(h.getLevel().damageSources().playerAttack(caster), 4),
+            "The caster's own hit must still be absorbed");
+        double afterSelf = MasteryView.of(caster, PlayerSpell.WARD.id()).ownXp();
+        h.assertTrue(afterSelf == beforeSelf,
+            "The ward's own caster must not earn from their warded target, got " + afterSelf);
         h.succeed();
     }
 

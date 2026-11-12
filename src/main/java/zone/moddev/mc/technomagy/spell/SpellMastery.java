@@ -114,8 +114,8 @@ final class SpellMastery {
     /**
      * Prices one grant linearly from the spell's configured cost total times the trigger's weight
      * (D79), read whether or not payment is enabled - the cost table is the spell's intrinsic price
-     * tag. A spell with no positive configured cost, or an id this class never declared, prices at
-     * {@link #BASE_EFFORT} rather than granting nothing.
+     * tag. A spell with no positive configured cost prices at {@link #BASE_EFFORT} rather than
+     * granting nothing; an id this class never declared throws, which core logs loudly (D79).
      *
      * @param player
      *            the granting player; effort comes from configuration, not player state
@@ -139,18 +139,24 @@ final class SpellMastery {
     }
 
     /**
-     * The configured cost total of {@code source}'s spell (D79), or {@link #BASE_EFFORT} when the
-     * spell is unknown or every configured cost is zero.
+     * The configured cost total of {@code source}'s spell (D79), or {@link #BASE_EFFORT} when every
+     * configured cost is zero, so a misconfigured spell still progresses rather than granting
+     * nothing. An id that is not one of the sixteen spells throws instead: core logs the
+     * misbehaving handler and falls back to the static base gain it owns, so a foreign spec
+     * borrowing this handler is loud rather than silently priced at 2.0 (D79's recorded decision).
      *
      * @param source
      *            the ability id being priced
      * @return positive effort in cost units
+     * @throws IllegalArgumentException
+     *             for an id this class never declared
      */
     private static double effort(ResourceLocation source) {
-        return PlayerSpell.find(source)
-            .map(SpellConfig::cost)
-            .map(cost -> cost.values().stream().mapToDouble(Integer::doubleValue).sum())
-            .filter(total -> total > 0.0)
-            .orElse(BASE_EFFORT);
+        PlayerSpell spell = PlayerSpell.find(source)
+            .orElseThrow(() -> new IllegalArgumentException("Gain handler " + EFFORT_HANDLER
+                + " prices Technomagy spells only; " + source + " must name its own handler"));
+        double total = SpellConfig.cost(spell).values().stream()
+            .mapToDouble(Integer::doubleValue).sum();
+        return total > 0.0 ? total : BASE_EFFORT;
     }
 }
