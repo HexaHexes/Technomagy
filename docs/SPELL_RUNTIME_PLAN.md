@@ -227,10 +227,12 @@ Light, Silver for Dark), and Single/Duo/Trio wearing the philosopher's
 stone, the amalgam and the amalgam (alternate) as tab icons. Quadra
 holds four-element abilities (none exists yet, so hotbar hides the
 empty tab) and stays text-only until a symbol is chosen. The spells'
-per-spell icons place their element symbols by count - duo on the
-top-left to bottom-right diagonal, trio in a triangle, quadra in a
-cross - and the entries read the element buckets D80 routes into and
-present each bucket's level as a meter once the snapshot answers.
+per-spell icons are generated at render time by an IconProvider from
+the element symbols (pack-aware; duo on the top-left to bottom-right
+diagonal, trio in a triangle, quadra in a cross; baked files are the
+static fallback) and the entries read the element buckets D80 routes
+into and present each bucket's level as a meter once the snapshot
+answers.
 Single is learned from the start (a future item-tag
 craft gate is recorded as intent); Duo unlocks when every element of a
 spell's stream reaches `mastery.unlockDuoLevel` (default 10) and Trio

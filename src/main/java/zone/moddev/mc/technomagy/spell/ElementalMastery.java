@@ -260,8 +260,7 @@ final class ElementalMastery {
         String name = tagName(element);
         return new AbilityDefinition(
             "mastery.technomagy." + name,
-            ResourceLocation.fromNamespaceAndPath("technomagy",
-                "textures/item/" + name + "_mastery.png"),
+            entryIcon(element),
             ResourceLocation.fromNamespaceAndPath("technomagy", "mastery"),
             ActivationType.UNKNOWN,
             List.of(),
@@ -269,6 +268,19 @@ final class ElementalMastery {
             "static",
             Set.of(name),
             Map.of("description", "mastery.technomagy." + name + ".description"));
+    }
+
+    /**
+     * The row icon texture for one element (D82): the element's alchemical symbol at 32 pixels -
+     * the Single entry's icon and the source the spell-icon generator composes from.
+     *
+     * @param element
+     *            one of the six personal-pool flavors
+     * @return the texture id
+     */
+    static ResourceLocation entryIcon(ManaType element) {
+        return ResourceLocation.fromNamespaceAndPath("technomagy",
+            "textures/item/" + tagName(element) + "_mastery.png");
     }
 
     /**

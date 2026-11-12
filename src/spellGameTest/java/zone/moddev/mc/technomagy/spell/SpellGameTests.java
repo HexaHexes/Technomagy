@@ -43,6 +43,7 @@ import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.Affordability;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
+import org.bitwisemadness.abilitycore.api.IconProviders;
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
@@ -1196,7 +1197,11 @@ public final class SpellGameTests {
                 && icon.getPath().equals("textures/item/" + spell.id().getPath() + ".png")
                 && resourceExists(icon),
                 spell + " must carry its element-overlay icon, got " + icon);
+            h.assertTrue(IconProviders.has(spell.id()),
+                spell + " must declare its generated-icon provider (D82)");
         }
+        h.assertTrue(IconProviders.iconFor(null, PlayerSpell.MEND.id()).isEmpty(),
+            "A dedicated server abstains from icon generation; the static icon stands");
         var quadra = MenuTabs.get(ElementalMastery.QUADRA_TAB).orElseThrow();
         h.assertTrue(quadra.iconId() == null,
             "Quadra has no chosen symbol yet and stays text-only");

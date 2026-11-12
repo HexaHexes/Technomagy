@@ -95,6 +95,7 @@ public final class SpellContent {
         SpellMastery.declare();
         ElementalMastery.declare();
         SpellUnlocks.declare();
+        SpellIcons.declare();
         ITEMS.register(bus);
         BLOCKS.register(bus);
         EFFECTS.register(bus);

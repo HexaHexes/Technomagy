@@ -1078,11 +1078,14 @@ already renders from the definition schema the row displays (D78).
 carries the placeholder blaze-rod icon and no per-spell art exists,
 so the documented resolution order ends at the definition's static
 icon; real spell art and its `IconProvider`s ship together with the
-art, not before it.
+art, not before it. (Superseded by D82: the spells now declare icon
+providers whose generated icons compose those symbols at render time
+and respect resource packs; the baked files remain the static
+fallback.)
 
 **Verification.** The provider logic that is headless-provable - the
 meter's field math from a fabricated answered or unanswered snapshot
-behind a pure seam - runs as GameTests (gate 44 -> N). The menu
+behind a pure seam - runs as GameTests (gate 44 -> 46). The menu
 meter and the pane rows are client render: honest scope is build
 green plus the user's in-game check, stated as such.
 
@@ -1144,12 +1147,19 @@ a horizontal line, Light the alchemical symbol for Gold (a circle with
 a dot at its centre), Dark the symbol for Silver (a crescent moon).
 The chips draw through hotbar's `subCategoryIcon` from 16-pixel file
 textures, the rows through each definition's `iconId` from 32-pixel
-files. The sixteen spells carry per-spell icons too: the shared
-placeholder upscaled with their component element symbols placed by
-count - a duo spell puts its two on the diagonal from top-left to
-bottom-right, a trio spell forms a triangle, and a future quadra spell
-a cross - each element in the stream's own order (initial layout), so
-a spell's icon shows every element it is made of.
+files. The sixteen spells' icons are GENERATED at render time by an
+`IconProvider` (core#62) from those same sources: the shared
+placeholder composited with the Single entries' element symbols at the
+count's layout - a duo spell's two on the diagonal from top-left to
+bottom-right, a trio's three forming a triangle, a quadra's four in a
+cross - each element in the spell's own stream order (initial layout).
+Composing from the live resource stack is what makes the icon respect
+resource packs: a pack that reskins an element symbol or the
+placeholder flows into the next generated icon, and the cache drops on
+resource reload so a pack swap regenerates. An unreadable source
+answers nothing and the documented resolution order falls to the
+definition's static icon - the baked composite - until hotbar's draw
+chain learns to consult providers (its own PR).
 
 **What the entries read.** The six are pure presentations of the
 existing element buckets (`SUBCATEGORY technomagy:<element>`): D80
