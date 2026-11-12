@@ -180,7 +180,8 @@ final class SpellRuntime {
                 prepareTimedEffect(
                     target.living(),
                     MobEffects.MOVEMENT_SLOWDOWN,
-                    SpellConfig.DURATION.get(),
+                    SpellMastery.durationTicks(
+                        player, PlayerSpell.CONSTRAINT, SpellConfig.DURATION.get()),
                     SpellConfig.CONSTRAINT_AMPLIFIER.get());
             case WARD -> {
                 LivingEntity warded = target.living() == null ? player : target.living();
@@ -192,28 +193,31 @@ final class SpellRuntime {
                 prepareTimedEffect(
                     target.living() == null ? player : target.living(),
                     SpellContent.SHROUD,
-                    SpellConfig.DURATION.get(),
+                    SpellMastery.durationTicks(player, PlayerSpell.SHROUD,
+                        SpellConfig.DURATION.get()),
                     0);
             case RADIANCE -> prepareRadiance(player, target);
             case BLIGHT ->
                 prepareTimedEffect(
                     target.living(),
                     MobEffects.WITHER,
-                    SpellConfig.SHORT_DURATION.get(),
+                    SpellMastery.durationTicks(
+                        player, PlayerSpell.BLIGHT, SpellConfig.SHORT_DURATION.get()),
                     SpellConfig.BLIGHT_AMPLIFIER.get());
-            case MEND -> prepareHeal(target.living() == null ? player : target.living());
+            case MEND -> prepareHeal(player, target.living() == null ? player : target.living());
             case LEACH ->
                 prepareTimedEffect(
                     target.living(),
                     SpellContent.LEACH,
-                    SpellConfig.DURATION.get(),
+                    SpellMastery.durationTicks(player, PlayerSpell.LEACH,
+                        SpellConfig.DURATION.get()),
                     0);
             case GROWTH ->
                 prepareGrowth(
                     player,
                     target.block(),
                     evaluated.effects().getFirst().growth().orElseThrow());
-            case LIFE_AND_DEATH -> prepareEnergy(level, target.block(), target.face());
+            case LIFE_AND_DEATH -> prepareEnergy(player, level, target.block(), target.face());
         };
         if (effect.isEmpty()) {
             return ActivationResult.refused(ActivationOutcome.REFUSED_INVALID_TARGET);
@@ -404,20 +408,23 @@ final class SpellRuntime {
 
     /**
      * Magical strike without vanilla lightning's unrelated fire/weather/transformation effects.
-     * Always valid: with no living target it is a visual strike at the aimed position. A strike
-     * that damages grants Lightning's mastery experience - {@code HIT}, or {@code KILL} when it
-     * brings the target to zero health; one strike is one award (D79). The award runs only once the
-     * whole strike succeeded: a bolt factory throw must not leave mastery credited for a cast the
-     * pipeline reports as failed (review of D79).
+     * Always valid: with no living target it is a visual strike at the aimed position. The damage
+     * scales with Lightning's {@code POWER} multiplier (D80). A strike that damages grants
+     * Lightning's mastery experience - {@code HIT}, or {@code KILL} when it brings the target to
+     * zero health; one strike is one award (D79). The award runs only once the whole strike
+     * succeeded: a bolt factory throw must not leave mastery credited for a cast the pipeline
+     * reports as failed (review of D79).
      *
      * @return whether the target was damaged, or, without a target, whether the bolt appeared
      */
     private boolean lightning(ServerPlayer player, Target target) {
         LivingEntity living = target.living();
         if (living != null) {
+            float damage = (float) SpellMastery
+                .power(player, PlayerSpell.LIGHTNING, SpellConfig.DAMAGE.get());
             if (!living.hurt(
                 player.damageSources().indirectMagic(player, player),
-                SpellConfig.DAMAGE.get().floatValue())) {
+                damage)) {
                 return false;
             }
         }
@@ -436,8 +443,9 @@ final class SpellRuntime {
 
     /**
      * Prepares an impulse instead of teleporting the entity or clearing its motion. The NeoForge
-     * knockback event is the permission check, so it is posted during validation and its adjusted
-     * strength and direction are what the effect applies.
+     * knockback event is the permission check, so it is posted during validation - with Steam's
+     * {@code POWER}-scaled nominal strength (D80), so validation and application share one value -
+     * and its adjusted strength and direction are what the effect applies.
      *
      * @return the effect, or empty without a living target or when knockback is vetoed
      */
@@ -451,9 +459,11 @@ final class SpellRuntime {
             direction = player.getLookAngle();
         }
         direction = direction.normalize();
+        float strength = (float) SpellMastery
+            .power(player, PlayerSpell.STEAM, SpellConfig.IMPULSE.get());
         var knockback = CommonHooks.onLivingKnockBack(
             living,
-            SpellConfig.IMPULSE.get().floatValue(),
+            strength,
             direction.x,
             direction.z);
         if (knockback.isCanceled() || knockback.getStrength() <= 0) {
@@ -469,21 +479,29 @@ final class SpellRuntime {
         });
     }
 
-    /** Creates a server-owned field; particle delivery failure never repeats the action. */
+    /**
+     * Creates a server-owned field; particle delivery failure never repeats the action. The field
+     * expiry scales with Mist's {@code DURATION} multiplier, rounded to the nearest half-up tick
+     * (D80); the radius stays config-driven.
+     */
     private boolean mist(ServerPlayer player, Vec3 center) {
         ServerLevel level = player.serverLevel();
+        int ticks = SpellMastery.durationTicks(player, PlayerSpell.MIST,
+            SpellConfig.DURATION.get());
         mists.add(
             new Mist(
                 level,
                 player.getUUID(),
                 center,
                 SpellConfig.MIST_RADIUS.get(),
-                level.getGameTime() + SpellConfig.DURATION.get()));
+                level.getGameTime() + ticks));
         return true;
     }
 
     /**
-     * Refreshes this runtime's shield without changing vanilla absorption or health.
+     * Refreshes this runtime's shield without changing vanilla absorption or health. The pool
+     * scales with Ward's {@code POWER} multiplier and the expiry with its {@code DURATION}
+     * multiplier, the latter rounded to the nearest half-up tick (D80).
      *
      * @param caster
      *            the player casting, recorded so absorbed damage credits their mastery (D79); the
@@ -492,13 +510,17 @@ final class SpellRuntime {
      *            the warded entity, which may be another living target rather than the caster
      */
     private boolean ward(ServerPlayer caster, LivingEntity entity) {
+        int ticks = SpellMastery.durationTicks(caster, PlayerSpell.WARD,
+            SpellConfig.DURATION.get());
+        float shield = (float) SpellMastery
+            .power(caster, PlayerSpell.WARD, SpellConfig.SHIELD.get());
         wards.put(
             entity.getUUID(),
             new Ward(
                 (ServerLevel) entity.level(),
                 caster.getUUID(),
-                entity.level().getGameTime() + SpellConfig.DURATION.get(),
-                SpellConfig.SHIELD.get().floatValue()));
+                entity.level().getGameTime() + ticks,
+                shield));
         return true;
     }
 
@@ -539,12 +561,13 @@ final class SpellRuntime {
         if (positions.isEmpty()) {
             return Optional.empty();
         }
+        int expiry = SpellMastery.durationTicks(
+            player, PlayerSpell.ENTOMB, SpellConfig.SHORT_DURATION.get());
         return Optional.of(() -> {
             boolean placed = false;
             for (BlockPos position : positions) {
                 if (level.setBlock(position, shell, Block.UPDATE_ALL)) {
-                    level.scheduleTick(position, shell.getBlock(),
-                        SpellConfig.SHORT_DURATION.get());
+                    level.scheduleTick(position, shell.getBlock(), expiry);
                     placed = true;
                 }
             }
@@ -570,12 +593,14 @@ final class SpellRuntime {
         if (entities.isEmpty()) {
             return Optional.empty();
         }
+        int duration = SpellMastery.durationTicks(
+            player, PlayerSpell.REVEAL, SpellConfig.SHORT_DURATION.get());
         return Optional.of(() -> {
             boolean found = false;
             for (LivingEntity entity : entities) {
                 found |= entity.addEffect(
                     new MobEffectInstance(
-                        MobEffects.GLOWING, SpellConfig.SHORT_DURATION.get()));
+                        MobEffects.GLOWING, duration));
             }
             return found;
         });
@@ -602,10 +627,12 @@ final class SpellRuntime {
             || !placementAllowed(player, pos, light)) {
             return Optional.empty();
         }
+        int expiry = SpellMastery.durationTicks(
+            player, PlayerSpell.RADIANCE, SpellConfig.DURATION.get());
         return Optional.of(() -> {
             boolean placed = level.setBlock(pos, light, Block.UPDATE_ALL);
             if (placed) {
-                level.scheduleTick(pos, light.getBlock(), SpellConfig.DURATION.get());
+                level.scheduleTick(pos, light.getBlock(), expiry);
             }
             return placed;
         });
@@ -614,17 +641,24 @@ final class SpellRuntime {
     /**
      * Prepares restoring health only; equipment maintenance remains recipe/material-dependent.
      * {@link LivingEntity#heal} does not report a cancelled {@code LivingHealEvent}, so the effect
-     * compares health before and after.
+     * compares health before and after. The amount scales with Mend's {@code POWER} multiplier
+     * (D80), read once so the applied heal is the one value this method priced.
      *
+     * @param player
+     *            the caster, whose mastery scales the heal amount
+     * @param target
+     *            the living entity to restore
      * @return the effect, or empty when the target is already at full health
      */
-    private Optional<Effect> prepareHeal(LivingEntity target) {
+    private Optional<Effect> prepareHeal(ServerPlayer player, LivingEntity target) {
         if (target.getHealth() >= target.getMaxHealth()) {
             return Optional.empty();
         }
+        float amount = (float) SpellMastery
+            .power(player, PlayerSpell.MEND, SpellConfig.HEAL.get());
         return Optional.of(() -> {
             float before = target.getHealth();
-            target.heal(SpellConfig.HEAL.get().floatValue());
+            target.heal(amount);
             return target.getHealth() > before;
         });
     }
@@ -636,8 +670,9 @@ final class SpellRuntime {
      * Validation collects every eligible plant in the 9x9 layer around the target; with none, the
      * cast is refused before payment. The effect re-checks each position (another plant's random
      * tick can change a neighbor) and applies imbalanced mortality or the fractional tick
-     * multiplier. Both are random, so a validated cast can still change nothing; the effect reports
-     * that, the cast is refused, and no pool is ever charged (D78).
+     * multiplier - the latter scaled by Growth's {@code POWER} multiplier (D80), the mortality roll
+     * left untouched. Both are random, so a validated cast can still change nothing; the effect
+     * reports that, the cast is refused, and no pool is ever charged (D78).
      *
      * @return the effect, or empty when no eligible plant is in range
      */
@@ -656,6 +691,10 @@ final class SpellRuntime {
         }
         return Optional.of(() -> {
             boolean affected = false;
+            // One read for the whole 9x9 pass: the aggregate view is identical per plant
+            // (review of D80), so the loop must not rebuild it 81 times.
+            double tickScale = SpellMastery
+                .power(player, PlayerSpell.GROWTH, growth.tickMultiplier());
             for (BlockPos position : plants) {
                 if (!growable(player, position)) {
                     continue;
@@ -669,7 +708,7 @@ final class SpellRuntime {
                     }
                     continue;
                 }
-                double extra = growth.tickMultiplier() - 1;
+                double extra = tickScale - 1;
                 int opportunities = (int) Math.floor(extra);
                 if (level.random.nextDouble() < extra - opportunities) {
                     opportunities++;
@@ -712,19 +751,32 @@ final class SpellRuntime {
 
     /**
      * Prepares delivering only what the FE receiver accepts. A simulated transfer validates that
-     * the receiver will take energy, so a refusing receiver is never charged for.
+     * the receiver will take energy, so a refusing receiver is never charged for. The amount scales
+     * with Life &amp; Death's {@code POWER} multiplier (D80), rounded to the nearest half-up unit -
+     * the design's integer-sink rule - and the same scaled amount validates and applies.
      *
+     * @param player
+     *            the caster, whose mastery scales the energy amount
+     * @param level
+     *            the level holding the receiver
+     * @param pos
+     *            the receiver's position
+     * @param face
+     *            the face the energy is offered to
      * @return the effect, or empty without a receiver that currently accepts energy
      */
-    private Optional<Effect> prepareEnergy(ServerLevel level, BlockPos pos, Direction face) {
+    private Optional<Effect> prepareEnergy(
+        ServerPlayer player, ServerLevel level, BlockPos pos, Direction face) {
         if (!level.hasChunkAt(pos)) {
             return Optional.empty();
         }
+        int energy = SpellMastery
+            .powerUnits(player, PlayerSpell.LIFE_AND_DEATH, SpellConfig.FE.get());
         var receiver = level.getCapability(Capabilities.EnergyStorage.BLOCK, pos, face);
-        if (receiver == null || receiver.receiveEnergy(SpellConfig.FE.get(), true) <= 0) {
+        if (receiver == null || receiver.receiveEnergy(energy, true) <= 0) {
             return Optional.empty();
         }
-        return Optional.of(() -> receiver.receiveEnergy(SpellConfig.FE.get(), false) > 0);
+        return Optional.of(() -> receiver.receiveEnergy(energy, false) > 0);
     }
 
     /**

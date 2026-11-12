@@ -184,6 +184,28 @@ UUID, preserved across refreshes and owned by the last caster to refresh,
 resolved to the online player at absorption time. An award for a trigger
 the spell's spec did not declare is ignored by core.
 
+Mastery layers two and three (D80) extend the same declaration. Every
+grant - the effort handler's output and raw awards alike - routes 40%
+evenly across the spell's element buckets (`SUBCATEGORY`
+`technomagy:<flavor>`, one per element of its stream), 15% to its one
+role-school bucket (`shaping` / `striking` / `warding` / `veiling` /
+`vitality`), and keeps the 45% remainder on the spell itself. Fourteen
+spells declare `POWER` (Lightning damage, Steam impulse, Mend heal,
+Ward shield, Growth tick multiplier, Life & Death energy) or
+`DURATION` (Constraint, Shroud, Leach, Mist, Ward, Radiance at
+`DURATION` ticks; Blight, Entomb, Reveal at `SHORT_DURATION` ticks;
+Ward takes both; Erode and Forge declare neither), read back through
+core's default curve
+(`1 + 0.5 × (1 - e^(-0.01 × aggregateLevel))`) at each effect site - integer
+sinks rounded nearest half-up, float magnitudes unrounded. The
+`technomagy:spell_effort` handler multiplies its total by the spell's
+own-level effort surge before routing (level 0-1 x1.0, level 2 x1.1,
+level 3 x1.25, level 4+ x1.5, initial and to be tuned); raw awards
+bypass the handler and are never surged. The mod ships
+`data/technomagy/mastery/levels.json` - cumulative thresholds
+`[50, 125, 250, 425]`, cap 4 - overriding core's config curve for
+every target.
+
 ### Verification
 
 D74 verification: `build` and all 26 dedicated-server GameTests passed with
@@ -198,16 +220,19 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 39 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 44 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
 Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
 target without a charge, a spend vetoed after the effect has acted leaving the
 cast standing with only that pool unpaid, an effect cancelled at application
 time never being charged, refusing an all-zero cost, and exempting creative
-casters. Four mastery checks cover activation gain priced from the configured
-cost, Lightning's HIT then KILL awards, Ward absorption crediting the ward's
-caster, and core ignoring an undeclared trigger. Two recharge checks
+casters. Nine mastery checks cover activation gain keeping its 45%
+self-share, Lightning's HIT then KILL awards, Ward absorption crediting the
+ward's caster and routing raw grants, core ignoring an undeclared trigger,
+the 40/15/45 share routing into element and discipline buckets, POWER-scaled
+Mend healing, DURATION-scaled Constraint slowdown, the shipped level-table
+curve, and the level-2 effort surge. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime

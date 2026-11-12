@@ -925,6 +925,110 @@ Ability Core's `mastery.enabled` and `mastery.globalGainMultiplier`
 govern the system; Technomagy adds no toggle of its own. Every number in
 this decision is initial and to be tuned.
 
+**D80.** Spell mastery, layers two and three: share routing, the
+`POWER`/`DURATION` effect axes, effort-surge perks, and the shipped
+level table. Layer one (D79) routed every grant to the spell itself;
+this decision splits grants across the mastery system's grouping
+targets, lets mastery change what a spell does, and gives each level
+threshold a milestone bonus. Presentation of all of it is a later layer.
+
+**Shares (layer two).** Every grant for a spell - the effort handler's
+output and raw awards alike - routes through the spec's share list:
+**40%** flows to the spell's elements, **15%** to its discipline, and
+the self remainder (**45%**) stays on the spell's own target.
+
+- **Elements**: one `SUBCATEGORY` bucket per element of the spell's
+  `stream()`, id `technomagy:<flavor>` - the same six ids as the
+  personal pool resources (D70/D78). The 40% splits evenly across them:
+  a pair spell routes 20% each, Growth 13.3% each. Every spell that
+  uses an element feeds the same bucket, so casting broadly in one
+  element empowers every spell of that element through core's
+  `aggregateLevel`.
+- **Disciplines**: exactly one fixed role school per spell, a
+  `SUBCATEGORY` bucket id `technomagy:<school>`:
+
+| Discipline | Spells |
+| --- | --- |
+| `shaping` | Erode, Forge, Growth |
+| `striking` | Lightning, Blight, Steam |
+| `warding` | Ward, Entomb, Constraint |
+| `veiling` | Mist, Shroud, Reveal, Radiance |
+| `vitality` | Mend, Leach, Life & Death |
+
+  Membership is declared in code by `SpellMastery.declare()`, initial
+  and to be tuned; all sixteen spells belong to exactly one school, so
+  the 15% never splits.
+
+The shares sum to 0.55, within core's `sum <= 1` rule, and core's
+`MasteryView` folds `ownLevel + sum(share x targetLevel)` back into the
+effect read. Shares are declared in code; no overlay files ship in this
+decision.
+
+**Effect axes (layer two).** Two of core's four axes participate, read
+through `MasteryEffects.powerMultiplier` / `durationMultiplier` at the
+spell's own effect sites. Neither names a custom handler, so core's
+default curve applies to the aggregate level:
+`1 + max x (1 - e^(-rate x aggregateLevel))` - with core's defaults
+(max 0.5, rate 0.01) the bonus approaches +50% and never reaches it,
+rising max x rate = +0.5% per aggregate level at zero; at the aggregate
+6.2 the tests pin, the multiplier is x1.030055 (Mend heals 14.1202,
+the Constraint slowdown lasts 206 ticks).
+
+| Axis | Spells | Scaled quantity (read site) |
+| --- | --- | --- |
+| `POWER` | Lightning | `SpellConfig.DAMAGE` |
+| `POWER` | Steam | `SpellConfig.IMPULSE` |
+| `POWER` | Mend | `SpellConfig.HEAL` |
+| `POWER` | Ward | `SpellConfig.SHIELD` |
+| `POWER` | Growth | the evaluated tick multiplier |
+| `POWER` | Life & Death | `SpellConfig.FE` |
+| `DURATION` | Constraint, Shroud, Leach, Mist, Ward, Radiance | `SpellConfig.DURATION` ticks |
+| `DURATION` | Blight, Entomb, Reveal | `SpellConfig.SHORT_DURATION` ticks |
+
+Erode and Forge declare neither axis: their instant block effects have
+no scalar quantity to scale. Ward declares both - shield strength and
+pool expiry. Radiance's light level, Mist's radius, the Constraint and
+Blight amplifiers, Growth's mortality roll, and the configured reach
+stay config- or roll-driven and are deliberately not scaled. A read is
+inert (1.0) exactly when core defines it inert: system disabled, no
+spec, or axis absent.
+
+**Rounding (layer two).** Integer sinks round **nearest, half-up**
+(`Math.round`) after multiplication: every duration above is an int
+tick count, and Life & Death's `SpellConfig.FE` is an int energy
+amount, so their products are fractional. Float magnitudes (damage,
+heal, shield, impulse, Growth's tick multiplier) apply unrounded. A
+scaled duration never rounds below the nominal value when the
+multiplier is 1.0, and validation inside a prepare step always uses the
+same scaled value the effect later applies.
+
+**Effort-surge perks (layer three).** Each level-table threshold a
+spell's **own** level crosses multiplies that spell's effort gain from
+`technomagy:spell_effort`: level 0-1 -> x1.0, level 2 -> x1.1,
+level 3 -> x1.25, level 4 and beyond -> x1.5 (the cap, so a future
+longer table never dips below a reached surge; initial, to be tuned).
+The surge scales the handler's total grant **before** routing, so the
+40/15/45 split applies to the surged amount. Raw awards bypass the
+handler (D79) and are never surged - Ward's absorbed-damage grants stay
+literally raw. The surge reads the spell's own level at grant time,
+before the grant is written, so one award is priced exactly once.
+
+**Level table (layer two).** The mod ships
+`data/technomagy/mastery/levels.json` in its resources:
+
+```json
+{ "levels": [50, 125, 250, 425] }
+```
+
+Cumulative XP thresholds - 50 reaches level 1, 125 level 2, 250 level
+3, 425 level 4 - and the cap in one table, overriding
+`mastery.levelCurveBase`, `mastery.levelCurveGrowth` and
+`mastery.maxLevel` entirely while present, for every target: spells,
+element buckets and discipline buckets alike. The values are initial
+and to be tuned; core validates the file (non-empty, finite,
+non-negative, strictly ascending) and falls back to the config formula
+with an error log when it is bad.
+
 ## Integration foundations
 
 **D40.** Sky's Ley Lines is a **required dependency on both client and server**

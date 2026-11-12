@@ -11,6 +11,12 @@
  * contract at construction and owns the award sites for casts, Lightning's hits and kills, and
  * Ward's damage absorption, including the caster UUID a ward records.
  *
+ * Mastery layers two and three (D80): the same class routes every grant 40% to the spell's element
+ * buckets, 15% to its role-school bucket and the remainder to the spell itself, declares the
+ * {@code POWER}/{@code DURATION} axes, reads their multipliers back for the effect sites in
+ * {@code SpellRuntime} (nearest half-up on integer sinks), applies the own-level effort surge in
+ * the gain handler, and ships {@code data/technomagy/mastery/levels.json}.
+ *
  * <p>
  * Effects consume the agreed first-cast runtime policy, now served by Ability Core's external
  * charging: {@code SpellResources} presents the six personal pools as resource pairs and prices

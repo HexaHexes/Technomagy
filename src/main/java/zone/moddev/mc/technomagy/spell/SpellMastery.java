@@ -1,5 +1,6 @@
 package zone.moddev.mc.technomagy.spell;
 
+import java.util.List;
 import java.util.UUID;
 
 import net.minecraft.resources.ResourceLocation;
@@ -7,20 +8,27 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
+import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
+import org.bitwisemadness.abilitycore.api.MasteryEffects;
 import org.bitwisemadness.abilitycore.api.MasteryGainHandlers;
 import org.bitwisemadness.abilitycore.api.MasterySpec;
+import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
+import org.bitwisemadness.abilitycore.api.MasteryView;
 
 /**
- * Layer-one spell mastery (D79): declares every player spell's Ability Core mastery contract and
- * owns every award site Technomagy can observe.
+ * Spell mastery (D79, D80): declares every player spell's Ability Core mastery contract and owns
+ * every award site and every effect read Technomagy performs.
  *
  * <p>
- * Each spell's spec routes grants to the spell itself (no share list, no effect axes - those are
- * later layers) and takes its gain from {@link #EFFORT_HANDLER}, which prices effort linearly from
- * the server-configured cast cost: configured cost total times the trigger's weight. The static
- * base gain is the loud fallback core applies if the handler name ever fails to resolve.
+ * Each spec routes grants through the D80 share list - the spell's elements plus its one role
+ * school, with the self remainder kept on the spell itself - takes its gain from
+ * {@link #EFFORT_HANDLER}, which prices effort linearly from the server-configured cast cost and
+ * multiplies it by the spell's own-level effort surge, and declares the {@code POWER} and
+ * {@code DURATION} axes whose multipliers this class reads back for the effect sites in
+ * {@link SpellRuntime}. The static base gain is the loud fallback core applies if the handler name
+ * ever fails to resolve.
  * </p>
  *
  * <p>
@@ -52,23 +60,79 @@ final class SpellMastery {
     /** Fallback weight for a non-raw CUSTOM grant (D79, initial value, to be tuned). */
     private static final double CUSTOM_WEIGHT = 1.0;
 
+    /**
+     * Share of every grant routed to the spell's element buckets, split evenly across them (D80,
+     * initial value, to be tuned). The self remainder keeps the rest.
+     */
+    private static final double ELEMENT_SHARE = 0.4;
+
+    /** Share of every grant routed to the spell's discipline bucket (D80, to be tuned). */
+    private static final double DISCIPLINE_SHARE = 0.15;
+
+    /** Effort surge at own level 2 (D80, initial value, to be tuned). */
+    private static final double SURGE_LEVEL_2 = 1.1;
+
+    /** Effort surge at own level 3 (D80, initial value, to be tuned). */
+    private static final double SURGE_LEVEL_3 = 1.25;
+
+    /**
+     * Effort surge at own level 4 and beyond (D80, initial value, to be tuned): the shipped level
+     * table caps at 4, and holding this value for any deeper level keeps a future longer table from
+     * ever dipping below a surge a player already reached.
+     */
+    private static final double SURGE_LEVEL_4 = 1.5;
+
+    /** The five role schools every spell belongs to exactly once (D80), as bucket targets. */
+    private static final MasteryTarget SHAPING = school("shaping");
+
+    /** See {@link #SHAPING}. */
+    private static final MasteryTarget STRIKING = school("striking");
+
+    /** See {@link #SHAPING}. */
+    private static final MasteryTarget WARDING = school("warding");
+
+    /** See {@link #SHAPING}. */
+    private static final MasteryTarget VEILING = school("veiling");
+
+    /** See {@link #SHAPING}. */
+    private static final MasteryTarget VITALITY = school("vitality");
+
     private SpellMastery() {
     }
 
     /**
-     * Declares the effort gain handler and all sixteen spell specs. Lightning additionally declares
-     * {@code HIT}/{@code KILL}, Ward additionally declares {@code CUSTOM}, and every spell declares
-     * the {@code ACTIVATION} core fires itself after a successful cast; an award for an undeclared
-     * trigger is ignored by core (D79).
+     * Declares the effort gain handler and all sixteen spell specs: the D80 share list (elements
+     * then discipline), the D79 trigger set - Lightning adds {@code HIT}/{@code KILL}, Ward adds
+     * {@code CUSTOM}, every spell the {@code ACTIVATION} core fires itself - and the D80 effect
+     * axes. An award for an undeclared trigger is ignored by core (D79); the declared axes let
+     * core's default curve scale the spell's magnitudes and durations through the aggregate level.
      */
     static void declare() {
         MasteryGainHandlers.declare(EFFORT_HANDLER, SpellMastery::gain);
         for (PlayerSpell spell : PlayerSpell.values()) {
             MasterySpec spec = MasterySpec.gained(BASE_EFFORT).withGainHandler(EFFORT_HANDLER);
+            List<MasteryTarget> elements = elements(spell);
+            if (elements.isEmpty()) {
+                // A spell with no elements has no elemental mastery to route to; failing here
+                // names the spell instead of letting a share validation misreport the problem.
+                throw new IllegalStateException(
+                    "Spell " + spell.id() + " declares no elements for its D80 shares");
+            }
+            double elementShare = ELEMENT_SHARE / elements.size();
+            for (MasteryTarget element : elements) {
+                spec = spec.withShare(element, elementShare);
+            }
+            spec = spec.withShare(discipline(spell), DISCIPLINE_SHARE);
             spec = switch (spell) {
-                case LIGHTNING -> spec.withTriggers(MasteryTrigger.HIT, MasteryTrigger.KILL);
-                case WARD -> spec.withTriggers(MasteryTrigger.CUSTOM);
-                default -> spec;
+                case LIGHTNING -> spec.withTriggers(MasteryTrigger.HIT, MasteryTrigger.KILL)
+                    .withEffect(MasteryAxis.POWER);
+                case WARD -> spec.withTriggers(MasteryTrigger.CUSTOM)
+                    .withEffect(MasteryAxis.POWER)
+                    .withEffect(MasteryAxis.DURATION);
+                case MIST, CONSTRAINT, ENTOMB, REVEAL, SHROUD, RADIANCE, BLIGHT, LEACH ->
+                    spec.withEffect(MasteryAxis.DURATION);
+                case STEAM, MEND, GROWTH, LIFE_AND_DEATH -> spec.withEffect(MasteryAxis.POWER);
+                case ERODE, FORGE -> spec;
             };
             MasteryDeclarations.declare(spell.id(), spec);
         }
@@ -92,8 +156,9 @@ final class SpellMastery {
 
     /**
      * Grants Ward's absorption as a raw amount of absorbed damage (D79): the gain handler is
-     * skipped for this grant while share routing and the global gain multiplier still apply. An
-     * offline or removed caster resolves to null and grants nothing.
+     * skipped for this grant - and with it the D80 effort surge, so absorption stays literally raw
+     * - while share routing and the global gain multiplier still apply. An offline or removed
+     * caster resolves to null and grants nothing.
      *
      * @param level
      *            the ward's level, used to resolve the caster's current player
@@ -112,18 +177,71 @@ final class SpellMastery {
     }
 
     /**
-     * Prices one grant linearly from the spell's configured cost total times the trigger's weight
-     * (D79), read whether or not payment is enabled - the cost table is the spell's intrinsic price
-     * tag. A spell with no positive configured cost prices at {@link #BASE_EFFORT} rather than
-     * granting nothing; an id this class never declared throws, which core logs loudly (D79).
+     * Scales an int tick count by one spell's DURATION multiplier (D80), rounded to the nearest
+     * half-up tick - the design's rounding rule for integer sinks, so a nominal duration never
+     * changes when the multiplier is {@code 1.0}.
      *
      * @param player
-     *            the granting player; effort comes from configuration, not player state
+     *            the caster whose mastery the duration scales with
+     * @param spell
+     *            the spell being cast
+     * @param ticks
+     *            the configured duration in game ticks
+     * @return the scaled duration in game ticks
+     */
+    static int durationTicks(ServerPlayer player, PlayerSpell spell, int ticks) {
+        return (int) Math.round(ticks * MasteryEffects.durationMultiplier(player, spell.id()));
+    }
+
+    /**
+     * Scales a float magnitude by one spell's POWER multiplier (D80) - the shared read behind the
+     * damage, impulse, shield and heal sites, so one curve change cannot leave them diverging.
+     *
+     * @param player
+     *            the caster whose mastery the effect scales with
+     * @param spell
+     *            the spell being cast
+     * @param magnitude
+     *            the configured float magnitude
+     * @return the scaled magnitude, unrounded (D80's float-magnitude rule)
+     */
+    static double power(ServerPlayer player, PlayerSpell spell, double magnitude) {
+        return magnitude * MasteryEffects.powerMultiplier(player, spell.id());
+    }
+
+    /**
+     * Scales an int sink by one spell's POWER multiplier (D80), rounded nearest half-up exactly
+     * like {@link #durationTicks} - Life & Death's configured energy amount.
+     *
+     * @param player
+     *            the caster whose mastery the effect scales with
+     * @param spell
+     *            the spell being cast
+     * @param units
+     *            the configured whole-unit amount
+     * @return the scaled amount in whole units
+     */
+    static int powerUnits(ServerPlayer player, PlayerSpell spell, int units) {
+        return (int) Math.round(units * MasteryEffects.powerMultiplier(player, spell.id()));
+    }
+
+    /**
+     * Prices one grant linearly from the spell's configured cost total times the trigger's weight
+     * (D79), read whether or not payment is enabled - the cost table is the spell's intrinsic price
+     * tag - and multiplies the result by the spell's own-level effort surge (D80). A spell with no
+     * positive configured cost prices at {@link #BASE_EFFORT} rather than granting nothing; an id
+     * this class never declared throws, which core logs loudly (D79).
+     *
+     * @param player
+     *            the granting player; effort comes from configuration, the surge from their own
+     *            mastery of {@code source}
      * @param source
      *            the ability id granting
      * @param trigger
      *            the trigger granting
      * @return XP for this grant, before routing and the global gain multiplier
+     * @throws IllegalArgumentException
+     *             for an id outside {@link PlayerSpell}
      */
     private static double gain(ServerPlayer player, ResourceLocation source,
         MasteryTrigger trigger) {
@@ -135,7 +253,28 @@ final class SpellMastery {
             // branch only answers a future non-raw CUSTOM award, priced like a cast.
             case CUSTOM -> CUSTOM_WEIGHT;
         };
-        return effort(source) * weight;
+        return effort(source) * weight * surge(player, source);
+    }
+
+    /**
+     * The effort surge for {@code source}'s own level at grant time (D80): level 0-1 no surge, then
+     * {@link #SURGE_LEVEL_2}, {@link #SURGE_LEVEL_3} and {@link #SURGE_LEVEL_4} from there. The
+     * level is read before the grant is written, so one award is priced exactly once. A null player
+     * yields an empty view (level 0) and no surge.
+     *
+     * @param player
+     *            the granting player
+     * @param source
+     *            the ability id granting
+     * @return a multiplier {@code >= 1} applied to the effort before routing
+     */
+    private static double surge(ServerPlayer player, ResourceLocation source) {
+        return switch (MasteryView.of(player, source).ownLevel()) {
+            case 0, 1 -> 1.0;
+            case 2 -> SURGE_LEVEL_2;
+            case 3 -> SURGE_LEVEL_3;
+            default -> SURGE_LEVEL_4;
+        };
     }
 
     /**
@@ -158,5 +297,50 @@ final class SpellMastery {
         double total = SpellConfig.cost(spell).values().stream()
             .mapToDouble(Integer::doubleValue).sum();
         return total > 0.0 ? total : BASE_EFFORT;
+    }
+
+    /**
+     * The element buckets one spell shares to (D80): one {@code SUBCATEGORY} target per element of
+     * its construction, id {@code technomagy:<flavor>} - the same id as the personal pool that
+     * element pays from (D70/D78), so elemental mastery and the pools name one element identically.
+     *
+     * @param spell
+     *            the spell whose construction supplies the elements
+     * @return the element targets in the spell's element enumeration order
+     */
+    private static List<MasteryTarget> elements(PlayerSpell spell) {
+        return spell.inputUnits().keySet().stream()
+            .map(element -> MasteryTarget.subcategory(PlayerManaPools.currency(element)))
+            .toList();
+    }
+
+    /**
+     * The discipline bucket one spell shares to (D80): its single fixed role school. Membership is
+     * the exhaustive switch below - every spell belongs to exactly one school, so the discipline
+     * share never splits.
+     *
+     * @param spell
+     *            the spell whose school is looked up
+     * @return the school's {@code SUBCATEGORY} target
+     */
+    private static MasteryTarget discipline(PlayerSpell spell) {
+        return switch (spell) {
+            case ERODE, FORGE, GROWTH -> SHAPING;
+            case LIGHTNING, BLIGHT, STEAM -> STRIKING;
+            case WARD, ENTOMB, CONSTRAINT -> WARDING;
+            case MIST, SHROUD, REVEAL, RADIANCE -> VEILING;
+            case MEND, LEACH, LIFE_AND_DEATH -> VITALITY;
+        };
+    }
+
+    /**
+     * The {@code SUBCATEGORY} target for one school id in the {@code technomagy} namespace.
+     *
+     * @param path
+     *            the school's id path, e.g. {@code shaping}
+     * @return the bucket target every spell of that school shares to
+     */
+    private static MasteryTarget school(String path) {
+        return MasteryTarget.subcategory(ResourceLocation.fromNamespaceAndPath("technomagy", path));
     }
 }
