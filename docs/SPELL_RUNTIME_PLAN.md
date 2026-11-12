@@ -144,8 +144,10 @@ outcomes decided only at application time - a cancelled damage or heal event, a
 refused block or entity, a Growth roll with no extra ticks - never cost
 anything: no effect is paid for without happening, and no refund is needed. A
 spend vetoed or refused after the effect has acted cannot be rolled back: the
-cast stands, that pool alone goes unpaid, and the failure is logged as a warning
-naming the player, pool, units, and status. The refund half of each pair still
+cast stands, that pool alone goes unpaid, and every failure names the player,
+pool, units, and status: a warning for a veto, a balance race, or an inactive
+pool, an error for every other status, so the build's ERROR log gate still
+catches real defects. The refund half of each pair still
 returns units to a caller that asks (`ResourceConsumers.refund`); Ley Lines can
 refuse a return, and it will not raise a balance above capacity, so a failed
 return is an error naming the player, pool, and units.

@@ -822,7 +822,12 @@ one. The pairs are declared only while Ley Lines is loaded. Every spell
 definition declares all six pools at its input-stream nominal amounts: those
 declared amounts are display defaults, because the per-world server config is
 not loaded when definitions register, and the `technomagy:spell_cost` amount
-resolver re-prices every entry from that config on each cast.
+resolver re-prices every entry from that config on each cast. The resolver is
+Technomagy's own: a foreign ability that names it fails closed with a logged
+resolution error rather than an invented price (recorded here because D76
+never covered the case), and a Technomagy spell's declared list must be
+exactly the six pool ids, each once - a dropped, duplicated, or non-pool id
+refuses the cast closed instead of quietly charging less.
 
 Ability Core then prices the cast, validates every selected entry fail-closed
 before the handler runs (the pool must exist, be active, and hold the price),
@@ -836,12 +841,19 @@ mechanism:
   has no result - never reaches the charge site, so no effect is ever paid for
   without happening and no refund path is needed.
 - A spend vetoed or refused **after** the effect has acted cannot be rolled
-  back: the cast stands, that pool alone goes unpaid, and the failure is logged
-  as a warning naming the player, pool, units, and status. This replaces D76's
-  rollback paragraph; a true atomic multi-currency spend in Ley Lines would let
-  the charge pre-commit instead.
-- With payment disabled or a creative caster, both halves answer "free", so no
-  pool is checked or spent.
+  back: the cast stands, that pool alone goes unpaid, and the failure is
+  logged by status - a warning for Ley Lines' veto, the balance race, or an
+  inactive pool, an error for every other status, because a storage failure or
+  a rejected re-entrant call is a defect the build's ERROR log gate must
+  catch. This replaces D76's rollback paragraph; a true atomic multi-currency
+  spend in Ley Lines would let the charge pre-commit instead.
+- With payment disabled or a creative caster, the read half answers a
+  zero-price snapshot and the charge half charges exactly that: no pool is
+  checked, and the two halves cannot disagree about who pays even if the
+  config or gamemode changes between them.
+- A fractional priced amount - only a future mastery discount can produce one -
+  is refused fail-closed at the affordability check, never rounded; a rounding
+  rule would then be a design decision of its own.
 - A spell whose configured costs are all zero is reported when the config loads
   and refused by the cast handler while payment is enabled, never cast for free.
 

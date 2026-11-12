@@ -1,5 +1,6 @@
 package zone.moddev.mc.technomagy.spell;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +39,10 @@ import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationResult;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
+import org.bitwisemadness.abilitycore.api.Affordability;
+import org.bitwisemadness.abilitycore.api.AmountResolvers;
+import org.bitwisemadness.abilitycore.api.ResourceCost;
+import org.bitwisemadness.abilitycore.api.ResourceProviders;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 
 import zone.moddev.mc.skysleylines.api.LeyLinesApi;
@@ -684,7 +689,7 @@ public final class SpellGameTests {
         h.succeed();
     }
 
-    /** Shortfalls and invalid targets are refused before any pool changes. */
+    /** Shortfalls, fractional prices, and invalid targets are refused before any pool changes. */
     @GameTest(template = "empty")
     public static void paymentRefusesShortfall(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -698,6 +703,13 @@ public final class SpellGameTests {
                 "Unaffordable Mend was not refused as unaffordable: " + result);
             h.assertTrue(player.getHealth() == 10, "Unaffordable Mend still healed");
             assertBalances(h, player, "A refused shortfall changed a pool", 3, 3, 3, 3, 0, 3);
+            // A fractional price cannot be charged in whole units: the provider must fail it
+            // closed as UNKNOWN before the handler, never approve it for units() to zero out.
+            var fractional = ResourceProviders.get(SpellResources.resourceId(ManaType.WATER))
+                .orElseThrow()
+                .check(PlayerSpell.MEND.id(), player, 0.5);
+            h.assertTrue(fractional.state() == Affordability.State.UNKNOWN,
+                "A fractional price must fail closed as UNKNOWN, got " + fractional.state());
             player.setHealth(player.getMaxHealth());
             var invalid = run(player, PlayerSpell.SHROUD);
             h.assertTrue(invalid.isSuccess(), "Affordable Shroud was refused: " + invalid);
@@ -765,7 +777,11 @@ public final class SpellGameTests {
         h.succeed();
     }
 
-    /** A spell configured to cost nothing is refused rather than cast for free. */
+    /**
+     * A spell configured to cost nothing is refused rather than cast for free; a declared list that
+     * drops or duplicates a pool id, or a foreign ability naming the resolver, is rejected
+     * fail-closed instead of priced at a quietly different list (D78).
+     */
     @GameTest(template = "empty")
     public static void paymentRefusesZeroCost(GameTestHelper h) {
         ServerPlayer player = paidPlayer(h);
@@ -786,7 +802,49 @@ public final class SpellGameTests {
             h.assertTrue(player.getHealth() == 10, "Zero-cost Mend still healed");
             assertBalances(h, player, "Zero-cost refusal changed a pool", 3, 3, 3, 3, 3, 3);
         });
+        var resolver = AmountResolvers.get(SpellResources.COST_RESOLVER).orElseThrow();
+        var request = ActivationRequest.of(PlayerSpell.MEND.id(), ActivationSource.DIRECT_SLOT);
+        var water = new ResourceCost(SpellResources.resourceId(ManaType.WATER), 1.0);
+        var light = new ResourceCost(SpellResources.resourceId(ManaType.LIGHT), 1.0);
+        assertResolverRejected(h, resolver, List.of(water, light), request, player,
+            "A declared list missing pool ids must be rejected");
+        var duplicated = new java.util.ArrayList<ResourceCost>();
+        duplicated.add(water);
+        duplicated.add(water);
+        for (ManaType flavor : ManaType.FLAVORS) {
+            if (flavor != ManaType.WATER && flavor != ManaType.DARK) {
+                duplicated.add(new ResourceCost(SpellResources.resourceId(flavor), 1.0));
+            }
+        }
+        assertResolverRejected(h, resolver, duplicated, request, player,
+            "A duplicated pool id must be rejected");
+        var foreign = ActivationRequest.of(
+            ResourceLocation.fromNamespaceAndPath("othermod", "spell"),
+            ActivationSource.DIRECT_SLOT);
+        assertResolverRejected(h, resolver, List.of(water, light), foreign, player,
+            "A foreign ability naming the resolver must be rejected");
+        var six = new java.util.ArrayList<ResourceCost>();
+        for (ManaType flavor : ManaType.FLAVORS) {
+            six.add(new ResourceCost(SpellResources.resourceId(flavor), 1.0));
+        }
+        h.assertTrue(resolver.resolve(six, request, player, null).size() == six.size(),
+            "A complete six-pool list must price");
         h.succeed();
+    }
+
+    /**
+     * Asserts one resolver input is rejected fail-closed with an {@link IllegalArgumentException}.
+     */
+    private static void assertResolverRejected(GameTestHelper h,
+        AmountResolvers.AmountResolver resolver, List<ResourceCost> declared,
+        ActivationRequest request, ServerPlayer player, String message) {
+        boolean threw = false;
+        try {
+            resolver.resolve(declared, request, player, null);
+        } catch (IllegalArgumentException expected) {
+            threw = true;
+        }
+        h.assertTrue(threw, message);
     }
 
     /** Creative casters cast without being charged (D76). */
