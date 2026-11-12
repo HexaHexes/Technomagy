@@ -269,7 +269,9 @@ final class SpellRuntime {
      * Only the target's presence is validated. Whether the effect lands is decided by
      * {@link LivingEntity#addEffect}: it fires {@code MobEffectEvent.Applicable} and declines when
      * the target already has a stronger or longer instance. Checking that in advance would fire the
-     * event twice or duplicate vanilla's update rules, so the applied result decides the refund.
+     * event twice or duplicate vanilla's update rules, so the applied result decides instead: a
+     * declined effect refuses the cast before Ability Core's charge site, leaving every pool
+     * untouched (D78).
      *
      * @return the effect, or empty without a living target
      */
@@ -617,8 +619,8 @@ final class SpellRuntime {
      * Validation collects every eligible plant in the 9x9 layer around the target; with none, the
      * cast is refused before payment. The effect re-checks each position (another plant's random
      * tick can change a neighbor) and applies imbalanced mortality or the fractional tick
-     * multiplier. Both are random, so a paid cast can still change nothing; the effect reports
-     * that, and the cast is refunded.
+     * multiplier. Both are random, so a validated cast can still change nothing; the effect reports
+     * that, the cast is refused, and no pool is ever charged (D78).
      *
      * @return the effect, or empty when no eligible plant is in range
      */
@@ -871,9 +873,10 @@ final class SpellRuntime {
     }
 
     /**
-     * A validated spell effect, applied only after the caster has paid. Applying it may still
-     * produce nothing when a decision made only at application time (an event, a refused placement,
-     * a random roll) prevents it; that case is refunded.
+     * A validated spell effect, applied by the handler before Ability Core charges the caster's
+     * pools (D78). Applying it may still produce nothing when a decision made only at application
+     * time (an event, a refused placement, a random roll) prevents it; that case refuses the cast
+     * before the charge site, so no pool is ever spent.
      */
     @FunctionalInterface
     private interface Effect {
