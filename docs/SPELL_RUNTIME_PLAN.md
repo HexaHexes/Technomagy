@@ -163,6 +163,27 @@ gains `recharge.unitsPerPulse` (default 1) units in one random pool that is
 active and below capacity. The gain is clamped to the remaining room, and nothing
 happens when every pool is full.
 
+### Mastery
+
+Layer-one spell mastery (D79) declares every spell's Ability Core mastery
+contract from `SpellMastery.declare()` at construction, beside the pool
+resource pairs. Grants land on the spell's own ability target, priced by
+the `technomagy:spell_effort` gain handler: the spell's configured cost
+total (read whether or not payment is enabled) times the trigger's
+weight - `ACTIVATION` 1.0, `HIT` 0.5, `KILL` 1.0 - with a base effort of
+2.0 when no positive cost is configured. All weights are initial and to
+be tuned. Ability Core fires `ACTIVATION` itself after every successful
+cast; `CUSTOM` grants bypass the handler with a raw amount.
+
+Technomagy fires the rest itself, through `SpellMastery`'s award sites:
+Lightning's bolt grants `HIT` when it damages its target and `KILL` when
+it brings that target to zero health (one strike, one award), and each
+Ward absorption grants `CUSTOM` with the absorbed damage as a raw amount
+to the ward's caster - the `Ward` record carries the casting player's
+UUID, preserved across refreshes and owned by the last caster to refresh,
+resolved to the online player at absorption time. An award for a trigger
+the spell's spec did not declare is ignored by core.
+
 ### Verification
 
 D74 verification: `build` and all 26 dedicated-server GameTests passed with
@@ -177,14 +198,16 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 35 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 39 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
 Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
 target without a charge, a spend vetoed after the effect has acted leaving the
 cast standing with only that pool unpaid, an effect cancelled at application
 time never being charged, refusing an all-zero cost, and exempting creative
-casters. Two recharge checks
+casters. Four mastery checks cover activation gain priced from the configured
+cost, Lightning's HIT then KILL awards, Ward absorption crediting the ward's
+caster, and core ignoring an undeclared trigger. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime

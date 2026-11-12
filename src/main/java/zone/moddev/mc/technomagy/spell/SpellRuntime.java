@@ -184,7 +184,7 @@ final class SpellRuntime {
                     SpellConfig.CONSTRAINT_AMPLIFIER.get());
             case WARD -> {
                 LivingEntity warded = target.living() == null ? player : target.living();
-                yield Optional.of(() -> ward(warded));
+                yield Optional.of(() -> ward(player, warded));
             }
             case ENTOMB -> prepareEntomb(player, target.living());
             case REVEAL -> prepareReveal(player);
@@ -404,17 +404,21 @@ final class SpellRuntime {
 
     /**
      * Magical strike without vanilla lightning's unrelated fire/weather/transformation effects.
-     * Always valid: with no living target it is a visual strike at the aimed position.
+     * Always valid: with no living target it is a visual strike at the aimed position. A strike
+     * that damages grants Lightning's mastery experience - {@code HIT}, or {@code KILL} when it
+     * brings the target to zero health; one strike is one award (D79).
      *
      * @return whether the target was damaged, or, without a target, whether the bolt appeared
      */
     private boolean lightning(ServerPlayer player, Target target) {
-        if (target.living() != null
-            && !target.living()
-                .hurt(
-                    player.damageSources().indirectMagic(player, player),
-                    SpellConfig.DAMAGE.get().floatValue())) {
-            return false;
+        LivingEntity living = target.living();
+        if (living != null) {
+            if (!living.hurt(
+                player.damageSources().indirectMagic(player, player),
+                SpellConfig.DAMAGE.get().floatValue())) {
+                return false;
+            }
+            SpellMastery.awardStrike(player, living.getHealth() <= 0.0F);
         }
         var bolt = EntityType.LIGHTNING_BOLT.create(player.serverLevel());
         if (bolt == null) {
@@ -474,12 +478,21 @@ final class SpellRuntime {
         return true;
     }
 
-    /** Refreshes this runtime's shield without changing vanilla absorption or health. */
-    private boolean ward(LivingEntity entity) {
+    /**
+     * Refreshes this runtime's shield without changing vanilla absorption or health.
+     *
+     * @param caster
+     *            the player casting, recorded so absorbed damage credits their mastery (D79); the
+     *            last caster to refresh a ward owns its pool
+     * @param entity
+     *            the warded entity, which may be another living target rather than the caster
+     */
+    private boolean ward(ServerPlayer caster, LivingEntity entity) {
         wards.put(
             entity.getUUID(),
             new Ward(
                 (ServerLevel) entity.level(),
+                caster.getUUID(),
                 entity.level().getGameTime() + SpellConfig.DURATION.get(),
                 SpellConfig.SHIELD.get().floatValue()));
         return true;
@@ -766,7 +779,10 @@ final class SpellRuntime {
         }
     }
 
-    /** Consumes this runtime's ward pool and breaks an attacker's Shroud on hostile action. */
+    /**
+     * Consumes this runtime's ward pool and breaks an attacker's Shroud on hostile action. Each
+     * absorbed hit credits the ward's caster with the absorbed amount as mastery experience (D79).
+     */
     @SubscribeEvent
     public void damage(LivingIncomingDamageEvent event) {
         if (event.getEntity().level().isClientSide()) {
@@ -785,8 +801,9 @@ final class SpellRuntime {
             } else {
                 wards.put(
                     event.getEntity().getUUID(),
-                    new Ward(ward.level(), ward.expires(), remaining));
+                    new Ward(ward.level(), ward.caster(), ward.expires(), remaining));
             }
+            SpellMastery.awardAbsorption(ward.level(), ward.caster(), absorbed);
             if (event.getAmount() <= 0) {
                 event.setCanceled(true);
             }
@@ -864,8 +881,20 @@ final class SpellRuntime {
         BlockPos block, Direction face, Vec3 position, LivingEntity living, ItemEntity item) {
     }
 
-    /** Runtime-owned ward capacity and expiry in its level's game ticks. */
-    private record Ward(ServerLevel level, long expires, float remaining) {
+    /**
+     * Runtime-owned ward capacity, expiry and caster in its level's game ticks.
+     *
+     * @param level
+     *            the level holding the warded entity
+     * @param caster
+     *            the player who cast the ward - mastery for absorbed damage credits this UUID
+     *            (D79); the last caster to refresh a ward owns its pool
+     * @param expires
+     *            the game tick after which the pool stops absorbing
+     * @param remaining
+     *            health points the pool can still absorb
+     */
+    private record Ward(ServerLevel level, UUID caster, long expires, float remaining) {
     }
 
     /** Runtime-owned mist geometry and expiry in level game ticks. */

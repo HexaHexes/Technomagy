@@ -7,6 +7,10 @@
  *
  * Server-authoritative player spell execution and Ability Core integration (D69-D70).
  *
+ * Layer-one spell mastery (D79): {@code SpellMastery} declares every spell's Ability Core mastery
+ * contract at construction and owns the award sites for casts, Lightning's hits and kills, and
+ * Ward's damage absorption, including the caster UUID a ward records.
+ *
  * <p>
  * Effects consume the agreed first-cast runtime policy, now served by Ability Core's external
  * charging: {@code SpellResources} presents the six personal pools as resource pairs and prices

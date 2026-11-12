@@ -84,7 +84,7 @@ public final class SpellContent {
     /**
      * Wires registries, server configuration, selection networking, and runtime lifecycle. The pool
      * resource pairs are declared first, at construction, before Ability Core's registry events
-     * fire (D78).
+     * fire (D78), followed by every spell's mastery contract (D79).
      *
      * @param bus
      *            mod event bus
@@ -93,6 +93,7 @@ public final class SpellContent {
      */
     public static void register(IEventBus bus, ModContainer container) {
         SpellResources.declare();
+        SpellMastery.declare();
         ITEMS.register(bus);
         BLOCKS.register(bus);
         EFFECTS.register(bus);

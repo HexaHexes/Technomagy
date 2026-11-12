@@ -860,6 +860,66 @@ mechanism:
 A refund that Ley Lines refuses is still an error naming the player, pool, and
 units, because those units are lost.
 
+**D79.** Spell mastery, layer one: every player spell opts into Ability
+Core's mastery system (REQ-CORE-12), so casting, striking, killing and
+warding grant experience toward per-spell levels.
+`SpellMastery.declare()` runs at mod construction from
+`SpellContent.register()`, right after the pool resource pairs (D78) and
+before Ability Core's registry events fire. An undeclared ability never
+touches the system, so all sixteen spells declare one.
+
+Each spell's spec is self-directed: grants land on the spell's own
+ability target - the implicit self-remainder, with no share list and no
+effect axes in this layer. Element/discipline shares, the `POWER` and
+`DURATION` axes, perks, datapack levels and presentation are later
+layers, each with its own decision. The gain comes from the named handler
+`technomagy:spell_effort`, and the spec keeps a static base gain of `2.0`
+as the loud fallback core uses if that handler name ever fails to
+resolve.
+
+The handler prices effort **linearly from the server-configured cast
+cost**: `XP = total configured cost x trigger weight`, read whether or
+not payment is enabled - the cost table is the spell's intrinsic price
+tag, not a payment-mode detail. The weights are initial values, to be
+tuned:
+
+| Trigger | Weight | Fired by |
+| --- | --- | --- |
+| `ACTIVATION` | `1.0` | Ability Core's post-activation tail, on every successful cast of any spell |
+| `HIT` | `0.5` | `SpellMastery`, when Lightning's bolt damages its target |
+| `KILL` | `1.0` | `SpellMastery`, when that same bolt brings the target to zero health |
+| `CUSTOM` | raw absorbed damage | `SpellMastery`, when a Ward absorbs incoming damage |
+
+A spell whose configured costs are all zero - configuration D76 already
+reports and refuses while payment is enabled - prices its effort at the
+base `2.0` instead of `0`, so a misconfigured spell still progresses
+rather than silently granting nothing.
+
+Trigger sets are declared intent: Lightning alone declares `HIT`/`KILL`,
+Ward alone declares `CUSTOM`, every spell declares `ACTIVATION`, and an
+award for an undeclared trigger is ignored by core. One bolt strike is
+one award: a kill grants `KILL`, never `KILL` plus `HIT`.
+
+Award sites live in `SpellMastery`:
+
+- Lightning fires `HIT`/`KILL` from inside its effect, only after
+  `hurt()` actually applied damage, deciding `KILL` by the target
+  reaching zero health.
+- Ward absorption fires `CUSTOM` with the absorbed damage as a raw
+  amount: the gain handler is skipped for that grant, while share routing
+  and the global gain multiplier still apply. The award needs the ward's
+  **caster**, so `Ward` records the casting player's UUID when it is
+  applied (including when the ward protects another entity), preserves it
+  when a partially spent pool is re-put, and lets the last caster to
+  refresh a ward own the pool. At absorption time the UUID resolves to
+  the caster's `ServerPlayer` from the ward's level; an offline or
+  removed caster grants nothing. Wards are runtime-only state, so caster
+  ownership never needs persisting.
+
+Ability Core's `mastery.enabled` and `mastery.globalGainMultiplier`
+govern the system; Technomagy adds no toggle of its own. Every number in
+this decision is initial and to be tuned.
+
 ## Integration foundations
 
 **D40.** Sky's Ley Lines is a **required dependency on both client and server**
