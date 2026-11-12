@@ -50,6 +50,12 @@ final class SpellConfig {
     static final ModConfigSpec.DoubleValue PLANT_MORTALITY;
     /** Whether casts charge the caster's personal elemental pools (D76). */
     static final ModConfigSpec.BooleanValue PAYMENT_ENABLED;
+
+    /** Element mastery level every Duo spell's parts must reach to unlock (D83). */
+    static final ModConfigSpec.IntValue UNLOCK_DUO_LEVEL;
+
+    /** Element mastery level every Trio spell's parts must reach to unlock (D83). */
+    static final ModConfigSpec.IntValue UNLOCK_TRIO_LEVEL;
     /** Per-spell, per-flavor cast costs in whole units; never contains Raw. */
     static final Map<PlayerSpell, Map<ManaType, ModConfigSpec.IntValue>> COSTS;
     /** Game ticks between recharge pulses for unlocked players (D77). */
@@ -78,6 +84,14 @@ final class SpellConfig {
         GROWTH_BASE = builder.defineInRange("growthBaseMultiplier", 1.0, 1.0, 64.0);
         GROWTH_SCALE = builder.defineInRange("growthPerElementMultiplier", 0.5, 0.0, 16.0);
         PLANT_MORTALITY = builder.defineInRange("imbalancedPlantMortality", 0.1, 0.0, 1.0);
+        builder.comment(
+            "Element mastery level every Duo spell's elements must reach before it unlocks",
+            "(D83). 0 opens Duo immediately.");
+        UNLOCK_DUO_LEVEL = builder.defineInRange("unlockDuoLevel", 10, 0, 100);
+        builder.comment(
+            "Element mastery level every Trio spell's elements must reach before it unlocks",
+            "(D83). 0 opens Trio immediately.");
+        UNLOCK_TRIO_LEVEL = builder.defineInRange("unlockTrioLevel", 25, 0, 100);
         builder.push("payment");
         PAYMENT_ENABLED = builder
             .comment(

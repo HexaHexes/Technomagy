@@ -85,5 +85,20 @@
   "mana.technomagy.raw": "Raw",
   "hud.technomagy.mana_pool_amount": "%s/%s",
   "technomagy.mastery.progress": "Mastery",
-  "technomagy.mastery.level_value": "Level %s"
+  "technomagy.mastery.level_value": "Level %s",
+  "tab.technomagy.single": "Single",
+  "tab.technomagy.duo": "Duo",
+  "tab.technomagy.trio": "Trio",
+  "mastery.technomagy.fire": "Fire Mastery",
+  "mastery.technomagy.earth": "Earth Mastery",
+  "mastery.technomagy.air": "Air Mastery",
+  "mastery.technomagy.water": "Water Mastery",
+  "mastery.technomagy.light": "Light Mastery",
+  "mastery.technomagy.dark": "Dark Mastery",
+  "mastery.technomagy.fire.description": "Fire Mastery grows when Fire spells earn mastery. Its level strengthens Forge, Lightning, Steam, Radiance and Blight.",
+  "mastery.technomagy.earth.description": "Earth Mastery grows when Earth spells earn mastery. Its level strengthens Erode, Forge, Constraint, Ward, Entomb and Growth.",
+  "mastery.technomagy.air.description": "Air Mastery grows when Air spells earn mastery. Its level strengthens Erode, Lightning, Mist, Reveal and Shroud.",
+  "mastery.technomagy.water.description": "Water Mastery grows when Water spells earn mastery. Its level strengthens Mist, Constraint, Mend and Leach.",
+  "mastery.technomagy.light.description": "Light Mastery grows when Light spells earn mastery. Its level strengthens Ward, Reveal, Radiance, Mend, Growth and Life & Death.",
+  "mastery.technomagy.dark.description": "Dark Mastery grows when Dark spells earn mastery. Its level strengthens Entomb, Shroud, Blight, Leach and Life & Death."
 }

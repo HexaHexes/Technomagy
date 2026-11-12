@@ -1014,20 +1014,24 @@ literally raw. The surge reads the spell's own level at grant time,
 before the grant is written, so one award is priced exactly once.
 
 **Level table (layer two).** The mod ships
-`data/technomagy/mastery/levels.json` in its resources:
+`data/technomagy/mastery/levels.json` in its resources: one hundred
+cumulative XP thresholds. The first four are the hand-set early game -
+50 reaches level 1, 125 level 2, 250 level 3, 425 level 4 - and from
+level 5 the table continues at ability-core's own default growth of
+1.15 per level (level 5 costs 425 x 1.15, level 6 that figure x 1.15,
+and so on to the hundredth threshold).
 
-```json
-{ "levels": [50, 125, 250, 425] }
-```
-
-Cumulative XP thresholds - 50 reaches level 1, 125 level 2, 250 level
-3, 425 level 4 - and the cap in one table, overriding
-`mastery.levelCurveBase`, `mastery.levelCurveGrowth` and
-`mastery.maxLevel` entirely while present, for every target: spells,
-element buckets and discipline buckets alike. The values are initial
-and to be tuned; core validates the file (non-empty, finite,
-non-negative, strictly ascending) and falls back to the config formula
-with an error log when it is bad.
+The table's length is the maximum mastery level: 100, matching core's
+default per-ability cap in soft mode - XP keeps accumulating past it
+and the display pins at 100 - so every level an unlock rule asks for
+(D83) exists. The table overrides `mastery.levelCurveBase`,
+`mastery.levelCurveGrowth` and `mastery.maxLevel` entirely while
+present, for every target: spells, element buckets and discipline
+buckets alike. Every value is initial and to be tuned; core validates
+the file (non-empty, finite, non-negative, strictly ascending) and
+falls back to the config formula with an error log when it is bad.
+(Revised by D83's thresholds: the original four-threshold table capped
+levels at 4.)
 
 **D81.** Spell mastery presentation: what the menu shows, and what
 stays unwritten. The mod declares the menu's `PresentationProvider`
@@ -1081,6 +1085,135 @@ meter's field math from a fabricated answered or unanswered snapshot
 behind a pure seam - runs as GameTests (gate 44 -> N). The menu
 meter and the pane rows are client render: honest scope is build
 green plus the user's in-game check, stated as such.
+
+**D82.** Ability Hotbar organization for Technomagy's abilities: three
+tabs by element count, an element tag filter beneath each tab, and the
+six elemental mastery entries as the Single tab's population - each
+element wearing its alchemical symbol. Presentation only - no balance
+changes; every boost described here is D80's already-running aggregate
+math.
+
+**Three tabs.** The mod registers three hotbar menu tabs -
+`technomagy:single` ("Single"), `technomagy:duo` ("Duo"),
+`technomagy:trio` ("Trio") - each accepting abilities by their element
+count: exactly one element tag, exactly two, exactly three. Membership
+reads the tags below, so an ability classifies itself by what it is
+made of and a future spell needs no registration change. Each tab
+declares the six element names as its subcategory order, so the strip
+under a tab shows only the elements that tab actually holds, in element
+order (Trio therefore shows Water, Light and Earth - Growth's stream).
+The tabs start as plain text with no icons (initial).
+
+**Element tags.** Every ability carries a tag for EACH of its component
+elements; the vocabulary is the six personal-pool names (D70): `fire`,
+`earth`, `air`, `water`, `light`, `dark`. The fifteen two-element
+spells carry two tags, Growth carries three, the six mastery entries
+carry one. The tags replace the current `spell` tag - whose only
+consumer was the strip itself - and they drive both tab membership and
+the element chips beneath each tab.
+
+**The six Single entries.** One non-castable ability per element -
+`technomagy:fire_mastery` through `technomagy:dark_mastery`, display
+names "Fire Mastery" through "Dark Mastery" - registered beside the
+spells with: activation `UNKNOWN` (permitted in data and refused
+fail-closed at activation: these are never cast), an empty cost list,
+strategy `all`, resolver `static` (no pricing can run), category
+`technomagy:mastery`, its one element tag, and a `description` data
+entry naming the spells that element boosts - fire: Forge, Lightning,
+Steam, Radiance, Blight; air: Erode, Lightning, Mist, Reveal, Shroud;
+earth: Erode, Forge, Constraint, Ward, Entomb, Growth; water: Mist,
+Constraint, Mend, Leach; light: Ward, Reveal, Radiance, Mend, Growth,
+Life & Death; dark: Entomb, Shroud, Blight, Leach, Life & Death - plus
+one plain line that its level strengthens those spells.
+
+**Alchemical element icons.** Each element chip and each mastery
+entry's row icon use the element's alchemical symbol in the classic
+forms (https://blog.prepscholar.com/alchemy-symbols): Fire the upward
+triangle, Water the downward triangle, Air the upward triangle
+bisected by a horizontal line, Earth the downward triangle bisected by
+a horizontal line, Light the alchemical symbol for Gold (a circle with
+a dot at its centre), Dark the symbol for Silver (a crescent moon).
+The chips draw through hotbar's `subCategoryIcon` from 16-pixel file
+textures, the rows through each definition's `iconId` from 32-pixel
+files; the sixteen spells keep their shared placeholder icon because a
+two-element spell cannot honestly wear one element's symbol.
+
+**What the entries read.** The six are pure presentations of the
+existing element buckets (`SUBCATEGORY technomagy:<element>`): D80
+already routes 40 percent of every grant there, and `MasteryView` already
+folds `share x bucket level` into each containing spell's aggregate -
+0.2 for a duo spell, 0.4/3 for Growth - feeding the POWER/DURATION
+curve. Each entry presents one `PROGRESS` field through D81's
+`PresentationProvider` seam: the element's level text inside the meter
+and its in-level fill, sourced from the `SUBCATEGORY` entries of the
+answered mastery snapshot. Hotbar's public snapshot reads expose only
+`ABILITY` entries, so Technomagy listens to core's
+`MasteryQueryAnsweredEvent` itself and keeps the element entries; before
+the answer the D81 rule holds - an empty presentation, never a guessed
+zero. Toggle stays null (nothing here is togglable or castable).
+
+**What does not change.** No new XP sources, no new multipliers, no
+capability changes to the sixteen spells, and no pane description line
+for the count classification - the three tabs are its single surface,
+superseding the description-slot idea considered for D81's follow-up.
+
+**Verification.** Headless-provable and covered by GameTests (gate
+46 -> 48): the six definitions register with the intended activation,
+costs, resolver, category and per-element tags; the spell tag swap
+reads back per spell (two tags, three for Growth); each tab's
+membership predicate accepts exactly its element count and rejects the
+other tabs'; and the entry provider answers an empty presentation
+before the snapshot and a level meter after a fabricated one. The tabs
+themselves, the chip strip, and the pane description are client render:
+honest scope is build green plus the user's in-game check, stated as
+such.
+
+**D83.** Ability availability: which of the three tabs' abilities
+(D82) a player has learned, answered through Ability Core's unlock
+providers. Everything rides core's default per-ability mastery cap of
+100 in soft mode, via the level table's length (D80, revised), so every
+threshold below always exists.
+
+- **Single** - the six elemental mastery entries, and any future
+  one-element ability - is learned from the start. Deferred, recorded
+  as intent: gating these behind the crafting of items in their own
+  item tag; when that lands the answer flips from `true` to that
+  item-tag check.
+- **Duo** spells are learned when EVERY element in the spell's stream
+  has reached `mastery.unlockDuoLevel` (server config, default 10,
+  range 0-100; 0 opens the tab immediately) on its elemental mastery.
+- **Trio** (Growth) with `mastery.unlockTrioLevel` (default 25).
+
+The verdict runs through `AbilityUnlocks.declare` for all twenty-two
+ids: the six entries answer `true`; the spells answer whether every
+component element's bucket level - the same buckets D80 routes into
+and D82 displays - has reached the threshold. The server reads the
+buckets from the player's attachments through `MasteryLevels`; the
+client reads the answered mastery snapshot D82 keeps. Before that
+answer the client abstains to unknown, and hotbar's `UnlockRule`
+(ability-hotbar#135) hides and refuses only a proven `false`, so an
+unknown state never locks anyone out.
+
+**Config and sync.** The two thresholds are SpellConfig SERVER values,
+because the gate is server truth; the menu decides hiding client-side
+and server configs never reach the client, so a new
+`UnlockThresholdsPayload` carries the pair to the client at join,
+beside the existing `ManaPoolSnapshot`. Before it arrives the client
+abstains (every row visible); after it the verdict is exact. A config
+reload applies to the server immediately and to clients on rejoin
+(initial).
+
+Behavior when a spell is proven unlearned: hotbar hides its menu row
+and refuses to assign it - no Technomagy-side rendering and no new
+overlay. Nothing here changes costs, gains, or effects.
+
+**Verification.** Headless-provable and covered by GameTests (gate
+48 -> 49): the server-side verdicts answer true for the six entries,
+false below the thresholds and true at them for a duo spell, false for
+a trio spell below 25 and true at it, and 0 opening a tab; the client
+store abstains before its payload arrives. The hidden row itself is
+client render: honest scope is build green plus the user's in-game
+check, stated as such.
 
 ## Integration foundations
 

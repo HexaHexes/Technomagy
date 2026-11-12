@@ -3,7 +3,6 @@ package zone.moddev.mc.technomagy.spell;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -94,6 +93,8 @@ public final class SpellContent {
     public static void register(IEventBus bus, ModContainer container) {
         SpellResources.declare();
         SpellMastery.declare();
+        ElementalMastery.declare();
+        SpellUnlocks.declare();
         ITEMS.register(bus);
         BLOCKS.register(bus);
         EFFECTS.register(bus);
@@ -109,11 +110,13 @@ public final class SpellContent {
         NeoForge.EVENT_BUS.register(RUNTIME);
         NeoForge.EVENT_BUS.addListener(PoolRecharge::tick);
         NeoForge.EVENT_BUS.addListener(PlayerManaPools::joined);
+        NeoForge.EVENT_BUS.addListener(SpellUnlocks::joined);
         NeoForge.EVENT_BUS.register(new ManaPoolSync());
     }
 
     /**
-     * Registers all sixteen explicit abilities, keeping the heuristic utility distinction intact.
+     * Registers the sixteen spells and the six elemental mastery entries (D82), keeping the
+     * heuristic utility distinction intact.
      */
     private static void abilities(RegisterEvent event) {
         if (!event.getRegistryKey().equals(AbilityRegistries.ABILITY_REGISTRY_KEY)) {
@@ -124,6 +127,10 @@ public final class SpellContent {
             helper -> {
                 for (PlayerSpell spell : PlayerSpell.values()) {
                     helper.register(spell.id(), definition(spell));
+                }
+                for (ManaType element : ManaType.FLAVORS) {
+                    helper.register(ElementalMastery.id(element),
+                        ElementalMastery.definition(element));
                 }
             });
     }
@@ -156,7 +163,7 @@ public final class SpellContent {
             List.copyOf(costs),
             "all",
             SpellResources.COST_RESOLVER,
-            Set.of("spell"),
+            ElementalMastery.elementTags(spell),
             Map.of());
     }
 
@@ -189,7 +196,10 @@ public final class SpellContent {
                     if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
                         zone.moddev.mc.technomagy.spell.client.PersonalManaHud.receive(packet);
                     }
-                }));
+                }))
+            .playToClient(UnlockThresholdsPayload.TYPE, UnlockThresholdsPayload.CODEC,
+                (packet, context) -> context.enqueueWork(
+                    () -> UnlockThresholdsPayload.store(packet)));
     }
 
     /** Makes the focus available for runtime testing and ordinary creative play. */

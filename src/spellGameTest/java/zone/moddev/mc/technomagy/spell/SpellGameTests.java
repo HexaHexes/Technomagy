@@ -1,6 +1,7 @@
 package zone.moddev.mc.technomagy.spell;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,6 +40,7 @@ import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationResult;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
+import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.Affordability;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
@@ -49,7 +51,11 @@ import org.bitwisemadness.abilitycore.api.PresentationField;
 import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
 import org.bitwisemadness.abilitycore.api.ResourceProviders;
+import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
+import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
+import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
+import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 
 import zone.moddev.mc.skysleylines.api.LeyLinesApi;
@@ -169,10 +175,11 @@ public final class SpellGameTests {
     }
 
     /**
-     * Creates Minecraft's mock connection with the hotbar snapshot channel declared before login.
-     * The stock helper skips mod channel negotiation, which makes Hotbar's real login sync fail.
-     * This test-only setup retains the login event and snapshot sender rather than disabling them;
-     * it does not simulate a client consuming or rendering those packets.
+     * Creates Minecraft's mock connection with the hotbar snapshot and unlock-threshold channels
+     * declared before login. The stock helper skips mod channel negotiation, which makes Hotbar's
+     * real login sync fail. This test-only setup retains the login event and snapshot senders
+     * rather than disabling them; it does not simulate a client consuming or rendering those
+     * packets.
      */
     private static ServerPlayer connectedPlayer(GameTestHelper helper, boolean creative) {
         var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(
@@ -198,6 +205,9 @@ public final class SpellGameTests {
         net.neoforged.neoforge.network.registration.ChannelAttributes
             .getOrCreateCommonChannels(connection, net.minecraft.network.ConnectionProtocol.PLAY)
             .add(ManaPoolSnapshot.TYPE.id());
+        net.neoforged.neoforge.network.registration.ChannelAttributes
+            .getOrCreateCommonChannels(connection, net.minecraft.network.ConnectionProtocol.PLAY)
+            .add(UnlockThresholdsPayload.TYPE.id());
         helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
         return player;
     }
@@ -1027,8 +1037,9 @@ public final class SpellGameTests {
     }
 
     /**
-     * The shipped level table owns the curve: cumulative thresholds 50/125/250/425 with a cap at
-     * level 4, overriding core's config formula for every target (D80).
+     * The shipped level table owns the curve: the hand-set thresholds 50/125/250/425, the level-10
+     * threshold at 983.05 the Duo unlock rides (D83), and the table's length - the maximum level
+     * 100 - as the cap, overriding core's config formula for every target (D80, revised).
      */
     @GameTest(template = "empty")
     public static void masteryLevelsCurve(GameTestHelper h) {
@@ -1044,8 +1055,12 @@ public final class SpellGameTests {
         assertOwnLevel(h, caster, PlayerSpell.MEND, 3, "250 XP must reach level 3");
         MasteryAwards.awardTo(caster, self, 175.0);
         assertOwnLevel(h, caster, PlayerSpell.MEND, 4, "425 XP must reach level 4");
-        MasteryAwards.awardTo(caster, self, 5000.0);
-        assertOwnLevel(h, caster, PlayerSpell.MEND, 4, "The shipped table must cap at level 4");
+        MasteryAwards.awardTo(caster, self, 600.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 10,
+            "1025 XP must reach level 10, the Duo unlock threshold");
+        MasteryAwards.awardTo(caster, self, 1_000_000_000.0);
+        assertOwnLevel(h, caster, PlayerSpell.MEND, 100,
+            "The shipped table must cap at its length, the maximum level 100");
         h.succeed();
     }
 
@@ -1110,6 +1125,143 @@ public final class SpellGameTests {
             "The meter's value must name level 4, got '" + meter.value() + "'");
         h.assertTrue(SpellMastery.presentation(false, 4, 0.25).fields().isEmpty(),
             "An unanswered snapshot must present no meter");
+        h.succeed();
+    }
+
+    /**
+     * D82: three tabs classify by element count, every ability carries a tag per component element,
+     * and the six elemental entries register as non-castable single-element abilities with their
+     * alchemical icons declared.
+     */
+    @GameTest(template = "empty")
+    public static void masteryTabsOrganizeByElementCount(GameTestHelper h) {
+        var registry = AbilityRegistries.registry();
+        for (ManaType flavor : ManaType.FLAVORS) {
+            var entry = registry.get(ElementalMastery.id(flavor));
+            h.assertTrue(entry != null, "Missing elemental mastery entry " + flavor);
+            h.assertTrue(entry.activationType() == ActivationType.UNKNOWN,
+                "Entries must be non-castable, got " + entry.activationType());
+            h.assertTrue(entry.costs().isEmpty(), "Entries must declare no costs");
+            h.assertTrue("static".equals(entry.amountResolver()),
+                "Entries must never price, got " + entry.amountResolver());
+            h.assertTrue(entry.tags().size() == 1
+                && entry.tags().contains(ElementalMastery.tagName(flavor)),
+                "An entry carries its one element tag, got " + entry.tags());
+            h.assertTrue(entry.description().isPresent(),
+                "An entry must describe its boost for " + flavor);
+        }
+        var mend = registry.get(PlayerSpell.MEND.id());
+        h.assertTrue(mend.tags().size() == 2
+            && mend.tags().containsAll(Set.of("water", "light")),
+            "Mend must carry its two element tags, got " + mend.tags());
+        var growth = registry.get(PlayerSpell.GROWTH.id());
+        h.assertTrue(growth.tags().size() == 3,
+            "Growth must carry its three element tags, got " + growth.tags());
+        var fire = ElementalMastery.id(ManaType.FIRE);
+        var fireEntry = registry.get(fire);
+        var single = MenuTabs.get(ElementalMastery.SINGLE_TAB).orElseThrow();
+        var duo = MenuTabs.get(ElementalMastery.DUO_TAB).orElseThrow();
+        var trio = MenuTabs.get(ElementalMastery.TRIO_TAB).orElseThrow();
+        h.assertTrue(single.accepts().test(fire, fireEntry),
+            "Single must list the entries");
+        h.assertTrue(!single.accepts().test(PlayerSpell.MEND.id(), mend),
+            "Single must not list a duo spell");
+        h.assertTrue(duo.accepts().test(PlayerSpell.MEND.id(), mend), "Duo must list Mend");
+        h.assertTrue(!duo.accepts().test(fire, fireEntry), "Duo must not list an entry");
+        h.assertTrue(!duo.accepts().test(PlayerSpell.GROWTH.id(), growth),
+            "Duo must not list a trio spell");
+        h.assertTrue(trio.accepts().test(PlayerSpell.GROWTH.id(), growth),
+            "Trio must list Growth");
+        h.assertTrue(!trio.accepts().test(PlayerSpell.MEND.id(), mend),
+            "Trio must not list a duo spell");
+        h.assertTrue(
+            MenuTabs.subCategoryOrder(ElementalMastery.SINGLE_TAB).size() == ManaType.FLAVORS
+                .size(),
+            "Each tab must declare the six element chips in order");
+        h.assertTrue(MenuTabs.subCategoryIcon("fire").isPresent(),
+            "The element chips must carry their alchemical icons");
+        h.succeed();
+    }
+
+    /**
+     * D82 through D81's seam: an entry presents nothing before the answered snapshot, then one
+     * level meter built from the element bucket's entry - never a guessed zero.
+     */
+    @GameTest(template = "empty")
+    public static void masteryEntriesPresentFromTheElementSnapshot(GameTestHelper h) {
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
+        var fire = ElementalMastery.id(ManaType.FIRE);
+        var before = PresentationProviders.present(caster, fire);
+        h.assertTrue(before.isPresent() && before.get().fields().isEmpty(),
+            "Before the answer the entry must present nothing, got " + before);
+        var bucket = new MasteryQueryResponse.Entry("SUBCATEGORY",
+            PlayerManaPools.currency(ManaType.FIRE).toString(), 425.0, 4, 0.5, List.of());
+        ElementalMastery.onAnswered(new MasteryQueryAnsweredEvent(
+            new MasteryQueryResponse(caster.getUUID().toString(), List.of(bucket))));
+        var after = PresentationProviders.present(caster, fire);
+        h.assertTrue(after.isPresent() && after.get().fields().size() == 1,
+            "An answered entry must present exactly one meter, got " + after);
+        var meter = after.get().fields().get(0);
+        h.assertTrue(meter.kind() == PresentationField.Kind.PROGRESS,
+            "The entry field must render as a meter, got " + meter.kind());
+        h.assertTrue(Math.abs(meter.progress() - 0.5f) < 1.0e-6,
+            "The meter must carry the bucket's fill, got " + meter.progress());
+        h.assertTrue(meter.value().endsWith("4"),
+            "The meter must name level 4, got '" + meter.value() + "'");
+        h.succeed();
+    }
+
+    /**
+     * D83: unlock verdicts run over the element buckets' levels - the six entries always learned,
+     * Duo at unlockDuoLevel for every element, Trio at unlockTrioLevel, config 0 opening a gate,
+     * and the client abstaining before its snapshot and payload arrive.
+     */
+    @GameTest(template = "empty")
+    public static void spellUnlocksGateByElementLevels(GameTestHelper h) {
+        ServerPlayer player = player(h, PlayerSpell.MEND);
+        int previousDuo = SpellConfig.UNLOCK_DUO_LEVEL.get();
+        try {
+            SpellConfig.UNLOCK_DUO_LEVEL.set(0);
+            h.assertTrue(SpellUnlocks.learnedFor(player, ElementalMastery.id(ManaType.FIRE))
+                .orElse(false),
+                "The entries are learned from the start");
+            h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.MEND.id()).orElse(false),
+                "A Duo threshold of 0 must open Duo immediately");
+            SpellConfig.UNLOCK_DUO_LEVEL.set(previousDuo);
+            h.assertTrue(!SpellUnlocks.learnedFor(player, PlayerSpell.MEND.id()).orElse(true),
+                "Below unlockDuoLevel Duo must be locked");
+            h.assertTrue(!SpellUnlocks.learnedFor(player, PlayerSpell.GROWTH.id()).orElse(true),
+                "Below unlockTrioLevel Trio must be locked");
+            // Water and Light to level 10 (1025 XP crosses the 983.05 threshold): Mend's pair
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 1025.0);
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 1025.0);
+            h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.MEND.id()).orElse(false),
+                "Mend must unlock once Water and Light reach level 10");
+            h.assertTrue(!SpellUnlocks.learnedFor(player, PlayerSpell.LIGHTNING.id()).orElse(true),
+                "Lightning must stay locked while Air is below the threshold");
+            // Air, Light and Earth to level 25 (8500 XP crosses the 7999.15 threshold),
+            // Fire to level 10 so Lightning's pair qualifies too
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.FIRE)), 1025.0);
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.AIR)), 8500.0);
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 8500.0);
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.EARTH)), 8500.0);
+            MasteryAwards.awardTo(player,
+                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 7475.0);
+            h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.GROWTH.id()).orElse(false),
+                "Growth must unlock once Water, Light and Earth reach level 25");
+            h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.LIGHTNING.id()).orElse(false),
+                "Lightning must unlock once Fire and Air reach level 10");
+            h.assertTrue(SpellUnlocks.learnedFor(null, PlayerSpell.MEND.id()).isEmpty(),
+                "The client before its snapshot and payload must abstain, not guess");
+        } finally {
+            SpellConfig.UNLOCK_DUO_LEVEL.set(previousDuo);
+        }
         h.succeed();
     }
 
