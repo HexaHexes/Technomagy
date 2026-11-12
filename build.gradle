@@ -116,7 +116,7 @@ repositories {
 
 dependencies {
     implementation "zone.moddev.mc.skysleylines:SkysLeyLines:${skysleylines_version}"
-    implementation 'org.bitwisemadness.abilitycore:ability_core:1.1.0-alpha.06'
+    implementation 'org.bitwisemadness.abilitycore:ability_core:1.1.0-alpha.07'
     implementation 'org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.1-alpha.06'
     // Guidebook (dev.gigaherz.guidebook) has no 1.21.1 release; books.json is still shipped and
     // will be picked up if Guidebook is installed.
