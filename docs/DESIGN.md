@@ -1093,16 +1093,25 @@ element wearing its alchemical symbol. Presentation only - no balance
 changes; every boost described here is D80's already-running aggregate
 math.
 
-**Three tabs.** The mod registers three hotbar menu tabs -
-`technomagy:single` ("Single"), `technomagy:duo` ("Duo"),
-`technomagy:trio` ("Trio") - each accepting abilities by their element
-count: exactly one element tag, exactly two, exactly three. Membership
-reads the tags below, so an ability classifies itself by what it is
-made of and a future spell needs no registration change. Each tab
-declares the six element names as its subcategory order, so the strip
-under a tab shows only the elements that tab actually holds, in element
-order (Trio therefore shows Water, Light and Earth - Growth's stream).
-The tabs start as plain text with no icons (initial).
+**Three tabs, four with Quadra.** The mod registers four hotbar menu
+tabs - `technomagy:single` ("Single"), `technomagy:duo` ("Duo"),
+`technomagy:trio` ("Trio") and `technomagy:quadra` ("Quadra") - each
+accepting abilities by their element count: exactly one element tag,
+exactly two, exactly three, exactly four. Membership reads the tags
+below, so an ability classifies itself by what it is made of and a
+future spell needs no registration change. Each tab declares the six
+element names as its subcategory order, so the strip under a tab shows
+only the elements that tab actually holds, in element order (Trio
+therefore shows Water, Light and Earth - Growth's stream). Quadra has
+no members today - no spell draws on four elements - so hotbar's
+empty-tab rule keeps it hidden until one arrives, and it stays
+text-only until a symbol for it is chosen. Single, Duo and Trio each
+wear their category's alchemical symbol from symbols.com as a
+16-pixel icon: the philosopher's stone for Single
+(https://www.symbols.com/symbol/philosopher%27s-stone), the amalgam for
+Duo (https://www.symbols.com/symbol/amalgam), and the amalgam
+(alternate) for Trio
+(https://www.symbols.com/symbol/amalgam-%28alternate%29).
 
 **Element tags.** Every ability carries a tag for EACH of its component
 elements; the vocabulary is the six personal-pool names (D70): `fire`,
@@ -1135,8 +1144,12 @@ a horizontal line, Light the alchemical symbol for Gold (a circle with
 a dot at its centre), Dark the symbol for Silver (a crescent moon).
 The chips draw through hotbar's `subCategoryIcon` from 16-pixel file
 textures, the rows through each definition's `iconId` from 32-pixel
-files; the sixteen spells keep their shared placeholder icon because a
-two-element spell cannot honestly wear one element's symbol.
+files. The sixteen spells carry per-spell icons too: the shared
+placeholder upscaled with their component element symbols placed by
+count - a duo spell puts its two on the diagonal from top-left to
+bottom-right, a trio spell forms a triangle, and a future quadra spell
+a cross - each element in the stream's own order (initial layout), so
+a spell's icon shows every element it is made of.
 
 **What the entries read.** The six are pure presentations of the
 existing element buckets (`SUBCATEGORY technomagy:<element>`): D80
@@ -1203,16 +1216,22 @@ abstains (every row visible); after it the verdict is exact. A config
 reload applies to the server immediately and to clients on rejoin
 (initial).
 
-Behavior when a spell is proven unlearned: hotbar hides its menu row
-and refuses to assign it - no Technomagy-side rendering and no new
-overlay. Nothing here changes costs, gains, or effects.
+Behavior when a spell is proven unlearned: each tab's live content
+lists only proven-learned abilities - unknown lists, so an unanswered
+snapshot or threshold payload never empties a tab - which puts a Duo or
+Trio spell out of its category until every element qualifies; wherever
+else a proven-unlearned row is listed, hotbar greys it (its #135 rule)
+and refuses to assign it. Nothing here changes costs, gains, or
+effects.
 
 **Verification.** Headless-provable and covered by GameTests (gate
-48 -> 49): the server-side verdicts answer true for the six entries,
+48 -> 50): the server-side verdicts answer true for the six entries,
 false below the thresholds and true at them for a duo spell, false for
 a trio spell below 25 and true at it, and 0 opening a tab; the client
-store abstains before its payload arrives. The hidden row itself is
-client render: honest scope is build green plus the user's in-game
+store abstains before its payload arrives; and each tab's content
+lists nothing unlearned, Mend alone once Water and Light reach level
+10, and the full tab when the answer is unknown. The greyed row itself
+is client render: honest scope is build green plus the user's in-game
 check, stated as such.
 
 ## Integration foundations

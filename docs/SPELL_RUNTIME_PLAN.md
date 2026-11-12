@@ -218,19 +218,26 @@ undeclared: no verdict can trust display-default costs against synced
 pools, and no spell art exists to iconify.
 
 Menu organization (D82) and availability (D83) extend the same layer:
-three tabs - Single, Duo, Trio - classify every ability by its element
-tag count (`fire`, `earth`, `air`, `water`, `light`, `dark`, one tag
-per component element, replacing the old `spell` tag), with the six
-non-castable elemental mastery entries as Single's population and each
+four tabs - Single, Duo, Trio, Quadra - classify every ability by its
+element tag count (`fire`, `earth`, `air`, `water`, `light`, `dark`, one
+tag per component element, replacing the old `spell` tag), with the six
+non-castable elemental mastery entries as Single's population, each
 element wearing its alchemical symbol as chip and row icon (Gold for
-Light, Silver for Dark). The entries read the element buckets D80
-routes into and present each bucket's level as a meter once the
-snapshot answers. Single is learned from the start (a future item-tag
+Light, Silver for Dark), and Single/Duo/Trio wearing the philosopher's
+stone, the amalgam and the amalgam (alternate) as tab icons. Quadra
+holds four-element abilities (none exists yet, so hotbar hides the
+empty tab) and stays text-only until a symbol is chosen. The spells'
+per-spell icons place their element symbols by count - duo on the
+top-left to bottom-right diagonal, trio in a triangle, quadra in a
+cross - and the entries read the element buckets D80 routes into and
+present each bucket's level as a meter once the snapshot answers.
+Single is learned from the start (a future item-tag
 craft gate is recorded as intent); Duo unlocks when every element of a
 spell's stream reaches `mastery.unlockDuoLevel` (default 10) and Trio
 at `mastery.unlockTrioLevel` (default 25) - server-config thresholds
 synced to the client at join beside the pool snapshot, verdicts through
-core's unlock providers, and unknown never hiding a row.
+core's unlock providers, and each tab's live content listing only
+proven-learned abilities (unknown lists - never a guessed lockout).
 
 ### Verification
 
@@ -255,14 +262,14 @@ the pre-answer empty presentation and the answered meter's field. The
 menu meter, the pane rows and the slot overlay are client render:
 build green plus the user's in-game check is their honest scope.
 
-Run `./gradlew runGameTestServer` for the 49 runtime checks, including every
+Run `./gradlew runGameTestServer` for the 50 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
 Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
 target without a charge, a spend vetoed after the effect has acted leaving the
 cast standing with only that pool unpaid, an effect cancelled at application
 time never being charged, refusing an all-zero cost, and exempting creative
-casters. Fourteen mastery checks cover activation gain keeping its 45%
+casters. Fifteen mastery checks cover activation gain keeping its 45%
 self-share, Lightning's HIT then KILL awards, Ward absorption crediting the
 ward's caster and routing raw grants, core ignoring an undeclared trigger,
 the 40/15/45 share routing into element and discipline buckets, POWER-scaled
@@ -270,8 +277,9 @@ Mend healing, DURATION-scaled Constraint slowdown, the shipped level-table
 curve, the level-2 effort surge, the D81 presentation registering for every
 spell with an empty pre-answer meter, the answered meter carrying its
 level text and in-level fill, the D82 three-tab organization with
-per-element tags and the entry meters from the answered snapshot, and the
-D83 unlock verdicts by element level. Two recharge checks
+per-element tags and the entry meters from the answered snapshot, the D83
+unlock verdicts by element level, and the tab content listing only
+proven-learned abilities. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime

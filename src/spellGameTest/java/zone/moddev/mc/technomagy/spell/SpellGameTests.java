@@ -1180,7 +1180,43 @@ public final class SpellGameTests {
             "Each tab must declare the six element chips in order");
         h.assertTrue(MenuTabs.subCategoryIcon("fire").isPresent(),
             "The element chips must carry their alchemical icons");
+        h.assertTrue(single.iconId() != null
+            && single.iconId().getPath().contains("tab/single.png")
+            && resourceExists(single.iconId()),
+            "Single must wear the philosopher's stone, got " + single.iconId());
+        h.assertTrue(duo.iconId() != null && duo.iconId().getPath().contains("tab/duo.png")
+            && resourceExists(duo.iconId()),
+            "Duo must wear the amalgam, got " + duo.iconId());
+        h.assertTrue(trio.iconId() != null && trio.iconId().getPath().contains("tab/trio.png")
+            && resourceExists(trio.iconId()),
+            "Trio must wear the amalgam alternate, got " + trio.iconId());
+        for (PlayerSpell spell : PlayerSpell.values()) {
+            var icon = registry.get(spell.id()).iconId();
+            h.assertTrue(icon != null
+                && icon.getPath().equals("textures/item/" + spell.id().getPath() + ".png")
+                && resourceExists(icon),
+                spell + " must carry its element-overlay icon, got " + icon);
+        }
+        var quadra = MenuTabs.get(ElementalMastery.QUADRA_TAB).orElseThrow();
+        h.assertTrue(quadra.iconId() == null,
+            "Quadra has no chosen symbol yet and stays text-only");
+        h.assertTrue(!quadra.accepts().test(PlayerSpell.MEND.id(), mend),
+            "Quadra must not accept a duo spell");
+        h.assertTrue(!quadra.accepts().test(PlayerSpell.GROWTH.id(), growth),
+            "Quadra must not accept a trio spell");
+        h.assertTrue(quadra.content() != null && quadra.content().entries(null).isEmpty(),
+            "Quadra lists nothing until a four-element ability exists");
         h.succeed();
+    }
+
+    /**
+     * Whether the mod's own classpath carries one resource: textures live under assets/, which a
+     * dedicated GameTest server's data-pack resource manager never sees - the classpath is where
+     * the shipped jar's files are provable headless.
+     */
+    private static boolean resourceExists(ResourceLocation id) {
+        return ElementalMastery.class
+            .getResource("/assets/" + id.getNamespace() + "/" + id.getPath()) != null;
     }
 
     /**
@@ -1208,6 +1244,41 @@ public final class SpellGameTests {
             "The meter must carry the bucket's fill, got " + meter.progress());
         h.assertTrue(meter.value().endsWith("4"),
             "The meter must name level 4, got '" + meter.value() + "'");
+        h.succeed();
+    }
+
+    /**
+     * D83: a tab's live content lists only proven-learned abilities - Duo and Trio stay out of
+     * their category until their elements qualify - and an unknown answer lists rather than
+     * guessing a lockout.
+     */
+    @GameTest(template = "empty")
+    public static void tabContentListsOnlyLearned(GameTestHelper h) {
+        ServerPlayer player = player(h, PlayerSpell.MEND);
+        var single = MenuTabs.get(ElementalMastery.SINGLE_TAB).orElseThrow().content();
+        var duo = MenuTabs.get(ElementalMastery.DUO_TAB).orElseThrow().content();
+        var trio = MenuTabs.get(ElementalMastery.TRIO_TAB).orElseThrow().content();
+        h.assertTrue(single != null && duo != null && trio != null,
+            "Each tab must declare its live content");
+        h.assertTrue(single.entries(player).size() == ManaType.FLAVORS.size(),
+            "Single always lists its six entries");
+        h.assertTrue(duo.entries(player).isEmpty(),
+            "Duo must list nothing until an element reaches unlockDuoLevel");
+        h.assertTrue(trio.entries(player).isEmpty(),
+            "Trio must list nothing until every element reaches unlockTrioLevel");
+        // Water and Light to level 10: Mend appears, Lightning (Fire/Air) stays out
+        MasteryAwards.awardTo(player,
+            MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 1025.0);
+        MasteryAwards.awardTo(player,
+            MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 1025.0);
+        var duoIds = duo.entries(player);
+        h.assertTrue(duoIds.contains(PlayerSpell.MEND.id()),
+            "Mend must list once Water and Light qualify");
+        h.assertTrue(!duoIds.contains(PlayerSpell.LIGHTNING.id()),
+            "Lightning must stay out while Air is unlearned");
+        h.assertTrue(duoIds.size() == 1, "Only Mend qualifies, got " + duoIds);
+        h.assertTrue(duo.entries(null).size() == PlayerSpell.values().length - 1,
+            "An unknown answer must list every duo spell rather than guess a lockout");
         h.succeed();
     }
 

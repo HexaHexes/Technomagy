@@ -1,5 +1,6 @@
 package zone.moddev.mc.technomagy.spell;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +22,7 @@ import org.bitwisemadness.abilitycore.api.PresentationField;
 import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
 import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
+import org.bitwisemadness.abilityhotbar.UnlockRule;
 import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
 
 import zone.moddev.mc.technomagy.mana.ManaType;
@@ -44,6 +46,13 @@ final class ElementalMastery {
     /** The Trio tab: exactly three element tags (Growth today). */
     static final ResourceLocation TRIO_TAB = ResourceLocation.fromNamespaceAndPath("technomagy",
         "trio");
+
+    /**
+     * The Quadra tab: exactly four element tags. Registered with no members today - no spell draws
+     * on four elements yet - so hotbar's empty-tab rule keeps it hidden until one arrives (D82).
+     */
+    static final ResourceLocation QUADRA_TAB = ResourceLocation.fromNamespaceAndPath("technomagy",
+        "quadra");
 
     /** The meter label key (D81's presentation seam). */
     private static final String METER_LABEL = "technomagy.mastery.progress";
@@ -69,25 +78,77 @@ final class ElementalMastery {
     }
 
     /**
-     * Declares the three tabs with their element-chip order and icons, the six entry presentation
-     * providers, and the snapshot listener. Runs once at mod construction beside the D79/D80
-     * declarations (D82).
+     * Declares the three tabs with their alchemical category icons, element-chip order, their
+     * learned-only live content (D83), the six entry presentation providers, and the snapshot
+     * listener. Runs once at mod construction beside the D79/D80 declarations (D82).
      */
     static void declare() {
-        MenuTabs.register(SINGLE_TAB, "tab.technomagy.single",
-            (id, definition) -> elementTagCount(definition) == 1);
-        MenuTabs.register(DUO_TAB, "tab.technomagy.duo",
-            (id, definition) -> elementTagCount(definition) == 2);
-        MenuTabs.register(TRIO_TAB, "tab.technomagy.trio",
-            (id, definition) -> elementTagCount(definition) == 3);
+        MenuTabs.register(SINGLE_TAB, "tab.technomagy.single", tabIcon("single"),
+            null, (id, definition) -> elementTagCount(definition) == 1, content(1), false);
+        MenuTabs.register(DUO_TAB, "tab.technomagy.duo", tabIcon("duo"),
+            null, (id, definition) -> elementTagCount(definition) == 2, content(2), false);
+        MenuTabs.register(TRIO_TAB, "tab.technomagy.trio", tabIcon("trio"),
+            null, (id, definition) -> elementTagCount(definition) == 3, content(3), false);
+        MenuTabs.register(QUADRA_TAB, "tab.technomagy.quadra", null,
+            null, (id, definition) -> elementTagCount(definition) == 4, content(4), false);
         MenuTabs.subCategoryOrder(SINGLE_TAB, ELEMENT_ORDER);
         MenuTabs.subCategoryOrder(DUO_TAB, ELEMENT_ORDER);
         MenuTabs.subCategoryOrder(TRIO_TAB, ELEMENT_ORDER);
+        MenuTabs.subCategoryOrder(QUADRA_TAB, ELEMENT_ORDER);
         for (ManaType element : ManaType.FLAVORS) {
             MenuTabs.subCategoryIcon(tagName(element), chipIcon(element), null);
             PresentationProviders.declare(id(element), ElementalMastery::present);
         }
         NeoForge.EVENT_BUS.addListener(ElementalMastery::onAnswered);
+    }
+
+    /**
+     * One tab's alchemical category icon (D82): the philosopher's stone for Single, the amalgam for
+     * Duo, the amalgam (alternate) for Trio, from symbols.com.
+     *
+     * @param name
+     *            the tab's id path: {@code single}, {@code duo} or {@code trio}
+     * @return the 16px texture id
+     */
+    private static ResourceLocation tabIcon(String name) {
+        return ResourceLocation.fromNamespaceAndPath("technomagy",
+            "textures/gui/tab/" + name + ".png");
+    }
+
+    /**
+     * One tab's live content (D83): only PROVEN-learned abilities list, so a Duo or Trio spell
+     * absent from its category until every element of its stream reaches the threshold. Unknown
+     * lists - hotbar's never-guess rule holds on this side too, so a player whose snapshot or
+     * threshold payload has not answered yet sees the full tab rather than a wrongly emptied one.
+     *
+     * @param elementCount
+     *            the tab's element count: 1 (the entries and any future single-element ability), 2,
+     *            or 3
+     * @return the content handler hotbar queries per menu frame
+     */
+    private static MenuTabs.TabContent content(int elementCount) {
+        return player -> {
+            List<ResourceLocation> ids = new ArrayList<>();
+            if (elementCount == 1) {
+                for (ManaType element : ManaType.FLAVORS) {
+                    ResourceLocation entry = id(element);
+                    if (listed(player, entry)) {
+                        ids.add(entry);
+                    }
+                }
+            }
+            for (PlayerSpell spell : PlayerSpell.values()) {
+                if (spell.inputUnits().size() == elementCount && listed(player, spell.id())) {
+                    ids.add(spell.id());
+                }
+            }
+            return ids;
+        };
+    }
+
+    /** Whether one id lists under a tab: everything except a proven-unlearned answer. */
+    private static boolean listed(Player player, ResourceLocation abilityId) {
+        return !UnlockRule.provenUnlearned(SpellUnlocks.learnedFor(player, abilityId));
     }
 
     /**

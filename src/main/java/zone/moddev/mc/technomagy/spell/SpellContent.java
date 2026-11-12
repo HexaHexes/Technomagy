@@ -156,7 +156,7 @@ public final class SpellContent {
         return new AbilityDefinition(
             "spell.technomagy." + spell.id().getPath(),
             ResourceLocation.fromNamespaceAndPath(
-                "minecraft", "textures/item/blaze_rod.png"),
+                "technomagy", "textures/item/" + spell.id().getPath() + ".png"),
             ResourceLocation.fromNamespaceAndPath(
                 "technomagy", "spells"),
             ActivationType.INSTANT,
