@@ -206,6 +206,16 @@ bypass the handler and are never surged. The mod ships
 `[50, 125, 250, 425]`, cap 4 - overriding core's config curve for
 every target.
 
+Menu presentation (D81) rides hotbar `1.0.1-alpha.06`: each spell
+declares a `PresentationProvider` whose single `PROGRESS` field is the
+menu's mastery meter - localised level text inside, in-level fill on
+the bar - read from hotbar's answered mastery snapshot, with an empty
+presentation (no meter, no rows, never a guessed zero) before the
+answer arrives and a null toggle because no spell is togglable. The
+slot overlay's availability provider and the icon providers stay
+undeclared: no verdict can trust display-default costs against synced
+pools, and no spell art exists to iconify.
+
 ### Verification
 
 D74 verification: `build` and all 26 dedicated-server GameTests passed with
@@ -220,19 +230,30 @@ hotbar assignment, slot rendering, and physical activation keys remain manual
 verification. Ordinary display startup crashed in native OpenGL before mod
 initialization; the virtual-display run completed successfully.
 
-Run `./gradlew runGameTestServer` for the 44 runtime checks, including every
+D80/D81 verification: `spotlessApply build` and all 46 dedicated-server
+GameTests passed with Core 1.1.0-alpha.06 and Hotbar 1.0.1-alpha.06
+installed, zero ERROR/FATAL records. The shipped level table loads
+through core's fixed datapack loader, the POWER/DURATION effect math
+matches core's asymptotic curve, and the D81 presentation checks cover
+the pre-answer empty presentation and the answered meter's field. The
+menu meter, the pane rows and the slot overlay are client render:
+build green plus the user's in-game check is their honest scope.
+
+Run `./gradlew runGameTestServer` for the 46 runtime checks, including every
 effect, expiration, recipe mirroring/color combinations, protection vetoes,
 Ward/Steam interaction, and the actual focus air/block-use paths. Six payment
 checks cover the default and configured costs, refusing a shortfall or invalid
 target without a charge, a spend vetoed after the effect has acted leaving the
 cast standing with only that pool unpaid, an effect cancelled at application
 time never being charged, refusing an all-zero cost, and exempting creative
-casters. Nine mastery checks cover activation gain keeping its 45%
+casters. Eleven mastery checks cover activation gain keeping its 45%
 self-share, Lightning's HIT then KILL awards, Ward absorption crediting the
 ward's caster and routing raw grants, core ignoring an undeclared trigger,
 the 40/15/45 share routing into element and discipline buckets, POWER-scaled
 Mend healing, DURATION-scaled Constraint slowdown, the shipped level-table
-curve, and the level-2 effort surge. Two recharge checks
+curve, the level-2 effort surge, the D81 presentation registering for every
+spell with an empty pre-answer meter, and the answered meter carrying its
+level text and in-level fill. Two recharge checks
 cover the permanent focus unlock, skipping dead players, and pool selection
 with clamping. The task
 requires the exact pass count and rejects ERROR/FATAL log records. Runtime
