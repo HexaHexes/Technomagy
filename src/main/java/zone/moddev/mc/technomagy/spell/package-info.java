@@ -17,6 +17,10 @@
  * {@code SpellRuntime} (nearest half-up on integer sinks), applies the own-level effort surge in
  * the gain handler, and ships {@code data/technomagy/mastery/levels.json}.
  *
+ * Menu presentation (D81): the same class declares every spell's {@code PresentationProvider} - the
+ * mastery meter built from Ability Hotbar's answered snapshot, an empty presentation before the
+ * answer - and deliberately declares no availability or icon provider.
+ *
  * <p>
  * Effects consume the agreed first-cast runtime policy, now served by Ability Core's external
  * charging: {@code SpellResources} presents the six personal pools as resource pairs and prices

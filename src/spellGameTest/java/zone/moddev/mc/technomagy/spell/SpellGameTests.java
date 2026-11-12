@@ -45,8 +45,11 @@ import org.bitwisemadness.abilitycore.api.MasteryAwards;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
 import org.bitwisemadness.abilitycore.api.MasteryView;
+import org.bitwisemadness.abilitycore.api.PresentationField;
+import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
 import org.bitwisemadness.abilitycore.api.ResourceProviders;
+import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 
 import zone.moddev.mc.skysleylines.api.LeyLinesApi;
@@ -1062,6 +1065,51 @@ public final class SpellGameTests {
         cast(h, caster, PlayerSpell.MEND);
         assertOwnXp(h, caster, PlayerSpell.MEND, "Level 2 must surge Mend's effort by x1.1",
             126.89);
+        h.succeed();
+    }
+
+    /**
+     * The D81 menu presentation registers for all sixteen spells and, with hotbar's snapshot
+     * unanswered (a headless run never opens the menu), answers an empty presentation - no meter,
+     * no rows, never a guessed zero.
+     */
+    @GameTest(template = "empty")
+    public static void masteryPresentationWaitsForTheSnapshot(GameTestHelper h) {
+        for (PlayerSpell spell : PlayerSpell.values()) {
+            h.assertTrue(PresentationProviders.has(spell.id()),
+                "Every spell must declare its D81 presentation, missing " + spell.id());
+        }
+        h.assertTrue(!CoreMasteryCompat.answered(),
+            "A headless run never opens the menu, so the snapshot stays unanswered");
+        var presentation = PresentationProviders.present(player(h, PlayerSpell.MEND),
+            PlayerSpell.MEND.id());
+        h.assertTrue(presentation.isPresent(), "A declared provider must answer a presentation");
+        h.assertTrue(presentation.get().fields().isEmpty(),
+            "An unanswered snapshot must present no meter, got " + presentation.get().fields());
+        h.assertTrue(presentation.get().toggle() == null,
+            "No spell is togglable, so no Enable/Disable control presents");
+        h.succeed();
+    }
+
+    /**
+     * The answered half of the D81 meter (its pure seam): one PROGRESS field carrying the in-level
+     * fill and the localised level text, built from fabricated snapshot numbers.
+     */
+    @GameTest(template = "empty")
+    public static void masteryPresentationMeterCarriesLevelAndFill(GameTestHelper h) {
+        var answered = SpellMastery.presentation(true, 4, 0.25);
+        h.assertTrue(answered.toggle() == null, "No spell is togglable");
+        h.assertTrue(answered.fields().size() == 1,
+            "The answered meter is exactly one field, got " + answered.fields());
+        var meter = answered.fields().get(0);
+        h.assertTrue(meter.kind() == PresentationField.Kind.PROGRESS,
+            "The presentation field must render as a meter, got " + meter.kind());
+        h.assertTrue(Math.abs(meter.progress() - 0.25f) < 1.0e-6,
+            "The meter must carry the in-level fill, got " + meter.progress());
+        h.assertTrue(meter.value().endsWith("4"),
+            "The meter's value must name level 4, got '" + meter.value() + "'");
+        h.assertTrue(SpellMastery.presentation(false, 4, 0.25).fields().isEmpty(),
+            "An unanswered snapshot must present no meter");
         h.succeed();
     }
 

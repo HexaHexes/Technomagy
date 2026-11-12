@@ -1029,6 +1029,59 @@ and to be tuned; core validates the file (non-empty, finite,
 non-negative, strictly ascending) and falls back to the config formula
 with an error log when it is bad.
 
+**D81.** Spell mastery presentation: what the menu shows, and what
+stays unwritten. The mod declares the menu's `PresentationProvider`
+for all sixteen spells from `SpellMastery`, beside the D79/D80
+declarations, and moves Ability Hotbar from `1.0.1-alpha.03` to
+`1.0.1-alpha.06` to consume it (the intermediate hotbar alphas bring
+the pane's live mastery bonuses, the row cost label and the slot pills
+along the way). The slot overlay's `AvailabilityProvider` and
+`IconProviders` are not declared; both are recorded below.
+
+**Menu (PresentationProvider).** One live field per spell: the mastery
+meter, kind `PROGRESS`, label key `technomagy.mastery.progress` (the
+provider owns the key; hotbar localises with its own fallback), value
+the localised own-level text, progress the in-level fill. The numbers
+come from hotbar's answered mastery snapshot (`CoreMasteryCompat`'s
+public level/xp/progress reads over core's query response): before the
+snapshot answers, the provider presents an empty presentation - no
+meter, no rows - rather than a guessed zero; once answered, the meter
+carries the honest level and fill. Toggle state is null for every
+spell - none of the sixteen is togglable, so no Enable/Disable control
+renders. No text fields: nothing else about a spell is both live and
+client-known (Ward's stored pool is runtime server state; the element
+stream and the costs are static schema the row already renders). The
+row's level badge and the post-XP generic bar come from hotbar's own
+snapshot path and supersede this meter - the presentation meter is the
+pre-XP chrome hotbar's hybrid keeps.
+
+**Slot overlay (AvailabilityProvider).** Not declared. Technomagy
+answers no castability verdict today: the client does know the synced
+`ManaPoolSnapshot` balances, but the costs a verdict would check
+against them are the definitions' display defaults (D78's
+registration order), so a per-world config that raises a cost could
+make the overlay say available while the server refuses - a wrong
+overlay is exactly what the REQ-HOT-08 contract forbids. Core's
+answer for an undeclared ability - no tuple, no overlay - is the
+honest one, and the cast path stays authoritative with the server's
+refusal as the truth. A future cost read the verdict can trust flips
+this section to a declared provider without touching anything else.
+Two facts hold either way: no spell has a cooldown system, so there
+is no cooldown metric to expose, and the declarative six-pool cost
+already renders from the definition schema the row displays (D78).
+
+**Icons (IconProviders).** Not declared. Every spell definition
+carries the placeholder blaze-rod icon and no per-spell art exists,
+so the documented resolution order ends at the definition's static
+icon; real spell art and its `IconProvider`s ship together with the
+art, not before it.
+
+**Verification.** The provider logic that is headless-provable - the
+meter's field math from a fabricated answered or unanswered snapshot
+behind a pure seam - runs as GameTests (gate 44 -> N). The menu
+meter and the pane rows are client render: honest scope is build
+green plus the user's in-game check, stated as such.
+
 ## Integration foundations
 
 **D40.** Sky's Ley Lines is a **required dependency on both client and server**

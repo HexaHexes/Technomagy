@@ -3,10 +3,13 @@ package zone.moddev.mc.technomagy.spell;
 import java.util.List;
 import java.util.UUID;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
+import org.bitwisemadness.abilitycore.api.AbilityPresentation;
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
 import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
@@ -16,10 +19,13 @@ import org.bitwisemadness.abilitycore.api.MasterySpec;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
 import org.bitwisemadness.abilitycore.api.MasteryView;
+import org.bitwisemadness.abilitycore.api.PresentationField;
+import org.bitwisemadness.abilitycore.api.PresentationProviders;
+import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 
 /**
- * Spell mastery (D79, D80): declares every player spell's Ability Core mastery contract and owns
- * every award site and every effect read Technomagy performs.
+ * Spell mastery (D79, D80, D81): declares every player spell's Ability Core mastery contract and
+ * owns every award site, every effect read and the menu presentation Technomagy performs.
  *
  * <p>
  * Each spec routes grants through the D80 share list - the spell's elements plus its one role
@@ -82,6 +88,12 @@ final class SpellMastery {
      */
     private static final double SURGE_LEVEL_4 = 1.5;
 
+    /** The menu meter's provider-owned label key (D81); hotbar localises with its own fallback. */
+    private static final String METER_LABEL = "technomagy.mastery.progress";
+
+    /** The meter's value text key: the localised own-level text drawn inside the bar (D81). */
+    private static final String LEVEL_VALUE = "technomagy.mastery.level_value";
+
     /** The five role schools every spell belongs to exactly once (D80), as bucket targets. */
     private static final MasteryTarget SHAPING = school("shaping");
 
@@ -106,6 +118,8 @@ final class SpellMastery {
      * {@code CUSTOM}, every spell the {@code ACTIVATION} core fires itself - and the D80 effect
      * axes. An award for an undeclared trigger is ignored by core (D79); the declared axes let
      * core's default curve scale the spell's magnitudes and durations through the aggregate level.
+     * The D81 menu presentation registers beside them, one provider function shared by all sixteen
+     * ids (core enforces one owner per id).
      */
     static void declare() {
         MasteryGainHandlers.declare(EFFORT_HANDLER, SpellMastery::gain);
@@ -135,7 +149,57 @@ final class SpellMastery {
                 case ERODE, FORGE -> spec;
             };
             MasteryDeclarations.declare(spell.id(), spec);
+            PresentationProviders.declare(spell.id(), SpellMastery::present);
         }
+    }
+
+    /**
+     * The menu presentation for one spell (D81), answering core's provider contract: hotbar's
+     * answered mastery snapshot decides, so an unanswered exchange or a spell core never declared
+     * yields an empty presentation - no meter, no rows, never a guessed zero - and an answered one
+     * yields the mastery meter. The answered-and-declared gate runs before any snapshot read, so an
+     * unanswered or undeclared id touches no numbers. The snapshot reads
+     * ({@link CoreMasteryCompat}) are the client's stored copy of the server's answer, so this
+     * stays side-disciplined: synced values only, and the player argument core passes is unused
+     * because the snapshot already names the local player's state.
+     *
+     * @param player
+     *            the player whose menu is rendering (the client's local player in production)
+     * @param abilityId
+     *            the spell being presented
+     * @return the presentation; never null, so core never logs a contract violation for it
+     */
+    static AbilityPresentation present(Player player, ResourceLocation abilityId) {
+        if (!CoreMasteryCompat.answered() || !CoreMasteryCompat.declared(abilityId)) {
+            // gate first: an unanswered or undeclared id is never even read (review of D81)
+            return presentation(false, 0, 0.0);
+        }
+        return presentation(true, CoreMasteryCompat.levelOf(abilityId),
+            CoreMasteryCompat.progressOf(abilityId));
+    }
+
+    /**
+     * The pure half of {@link #present}: the answered snapshot's numbers in, one presentation out,
+     * with no client state touched - the seam the GameTests drive with fabricated answers (D81).
+     * Unanswered reads an empty presentation; answered reads the meter with the localised level
+     * text inside and the in-level fill on the bar. Toggle is always null because no spell is
+     * togglable, and there are no text fields because nothing else is both live and client-known.
+     *
+     * @param answered
+     *            whether hotbar's snapshot has answered for this spell
+     * @param level
+     *            the snapshot's own-target level (read only when answered)
+     * @param progress
+     *            the snapshot's in-level fill in {@code [0, 1]} (read only when answered)
+     * @return the presentation; never null
+     */
+    static AbilityPresentation presentation(boolean answered, int level, double progress) {
+        if (!answered) {
+            return new AbilityPresentation(null, List.of());
+        }
+        PresentationField meter = PresentationField.progress(METER_LABEL, (float) progress,
+            Component.translatable(LEVEL_VALUE, level).getString());
+        return new AbilityPresentation(null, List.of(meter));
     }
 
     /**

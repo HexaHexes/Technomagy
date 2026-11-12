@@ -83,5 +83,7 @@
   "mana.technomagy.light": "Light",
   "mana.technomagy.dark": "Dark",
   "mana.technomagy.raw": "Raw",
-  "hud.technomagy.mana_pool_amount": "%s/%s"
+  "hud.technomagy.mana_pool_amount": "%s/%s",
+  "technomagy.mastery.progress": "Mastery",
+  "technomagy.mastery.level_value": "Level %s"
 }
