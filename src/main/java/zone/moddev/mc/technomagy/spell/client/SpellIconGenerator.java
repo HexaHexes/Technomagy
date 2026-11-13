@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import javax.imageio.ImageIO;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.logging.LogUtils;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -27,6 +29,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 
+import org.slf4j.Logger;
+
 /**
  * Render-time icon generation for the sixteen spells (D82): composes a duo, trio or quadra icon
  * from the element glyphs the common side resolved, laid out on a transparent 32x32 canvas at the
@@ -37,31 +41,39 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
  * order falls to the definition's static icon.
  *
  * <p>
- * The baked static icons are the same composition produced by the same integer math (the D82 icon
- * regeneration pass mirrors {@link #boxScale} and {@link #composite} line for line): identical
- * glyph box, layout slots and downscale, so the generated texture and the fall-back file agree
- * pixel for pixel.
+ * The baked static icons are this same composition: the {@code runSpellIconChecks} Gradle check
+ * (class {@code SpellIconChecks}) composes every spell from the committed glyph files through
+ * {@link #composeCanvas} and asserts pixel equality against the committed PNGs, so the generated
+ * texture and the fall-back file cannot drift apart - and running that check with its write flag
+ * regenerates the baked files from this very code, with no second copy of the math anywhere.
  * </p>
  */
 @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class SpellIconGenerator {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     /** The box each element glyph is drawn into, matching the baked static icons (D82). */
     private static final int GLYPH_SIZE = 15;
 
     /**
-     * Layout slots per glyph count, in the spell's own stream order (D82): each 15x15 box packed
-     * one pixel from the canvas edge, so a duo reads as a diagonal, a trio as a triangle and a
-     * quadra as a diagonal X - no two boxes overlap at the larger size (a plus-sign cross would
-     * force its four arms to collide in the middle).
+     * Layout slots per glyph count (D82): each 15x15 box packed one pixel from the canvas edge, so
+     * a duo reads as a diagonal, a trio as a triangle and a quadra as a diagonal X - no two boxes
+     * overlap at the larger size (a plus-sign cross would force its four arms to collide in the
+     * middle). The glyphs fill these slots in the spell's own stream order.
      */
     private static final Map<Integer, int[][]> LAYOUTS = Map.of(
         2, new int[][]{{1, 1}, {16, 16}},
         3, new int[][]{{8, 1}, {1, 16}, {16, 16}},
         4, new int[][]{{1, 1}, {16, 1}, {1, 16}, {16, 16}});
 
-    /** Generated texture ids by ability, dropped on resource reload (client thread only). */
-    private static final Map<ResourceLocation, ResourceLocation> generated = new HashMap<>();
+    /**
+     * Generated texture ids by ability (client thread only), dropped on resource reload so a pack
+     * swap regenerates. A refusal is cached as an empty optional beside a registered id, so an
+     * unreadable or rejected glyph is diagnosed once per reload instead of every frame the hotbar
+     * draw chain asks the provider.
+     */
+    private static final Map<ResourceLocation, Optional<ResourceLocation>> generated = new HashMap<>();
 
     private SpellIconGenerator() {
     }
@@ -79,7 +91,8 @@ public final class SpellIconGenerator {
             protected void apply(Void prepared, ResourceManager manager, ProfilerFiller profiler) {
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft != null) {
-                    generated.values().forEach(minecraft.getTextureManager()::release);
+                    generated.values().stream().flatMap(Optional::stream)
+                        .forEach(minecraft.getTextureManager()::release);
                 }
                 generated.clear();
             }
@@ -88,11 +101,13 @@ public final class SpellIconGenerator {
 
     /**
      * Composes and registers one ability's icon, or answers null when it cannot - the resolution
-     * order then falls to the definition's static icon.
+     * order then falls to the definition's static icon. Every answer, including a refusal, is
+     * cached against the ability id until resources reload, so a repeated ask is a map lookup
+     * rather than a PNG decode, a box scale and a texture upload.
      *
      * @param abilityId
      *            the ability being drawn (names the generated texture)
-     * @param glyphIcons
+     * @param glyphs
      *            the element glyph textures in the spell's stream order (2..4 of them)
      * @return the registered dynamic texture's id, or null for no answer
      */
@@ -100,24 +115,52 @@ public final class SpellIconGenerator {
         List<ResourceLocation> glyphs) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null) {
-            return null;
+            return null; // no client yet - there is nothing to cache an answer against
         }
-        int[][] slots = LAYOUTS.get(glyphs.size());
-        if (slots == null) {
+        Optional<ResourceLocation> cached = generated.get(abilityId);
+        if (cached != null) {
+            return cached.orElse(null);
+        }
+        ResourceLocation id = composeAndRegister(minecraft, abilityId, glyphs);
+        generated.put(abilityId, Optional.ofNullable(id));
+        return id;
+    }
+
+    /**
+     * The uncached half of {@link #compose}: decodes the glyphs from the live resource stack,
+     * composes them and registers the result, leaving the caller to store the answer.
+     *
+     * @param minecraft
+     *            the live client whose resource stack and texture manager are used
+     * @param abilityId
+     *            the ability being drawn (names the generated texture)
+     * @param glyphs
+     *            the element glyph textures in the spell's stream order
+     * @return the registered dynamic texture's id, or null when the count has no layout or a glyph
+     *         is unreadable or not square
+     */
+    private static ResourceLocation composeAndRegister(Minecraft minecraft,
+        ResourceLocation abilityId, List<ResourceLocation> glyphs) {
+        if (!LAYOUTS.containsKey(glyphs.size())) {
             return null; // a single-element spell wears its entry's icon; deeper counts abstain
         }
-        BufferedImage composed = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
-        for (int i = 0; i < glyphs.size(); i++) {
-            BufferedImage glyph = read(minecraft, glyphs.get(i));
-            if (glyph == null) {
+        List<BufferedImage> decoded = new ArrayList<>(glyphs.size());
+        for (ResourceLocation glyph : glyphs) {
+            BufferedImage image = read(minecraft, glyph);
+            if (image == null) {
                 return null;
             }
-            BufferedImage small = boxScale(glyph, GLYPH_SIZE, GLYPH_SIZE);
-            for (int dy = 0; dy < GLYPH_SIZE; dy++) {
-                for (int dx = 0; dx < GLYPH_SIZE; dx++) {
-                    composite(composed, slots[i][0] + dx, slots[i][1] + dy, small.getRGB(dx, dy));
-                }
+            if (image.getWidth() != image.getHeight()) {
+                LOGGER.warn("Glyph {} is {}x{} rather than square - an animated strip cannot be "
+                    + "composed, so {} falls back to its static icon", glyph, image.getWidth(),
+                    image.getHeight(), abilityId);
+                return null;
             }
+            decoded.add(image);
+        }
+        BufferedImage composed = composeCanvas(decoded);
+        if (composed == null) {
+            return null;
         }
         NativeImage pixels = new NativeImage(32, 32, true);
         for (int y = 0; y < 32; y++) {
@@ -132,11 +175,43 @@ public final class SpellIconGenerator {
     }
 
     /**
+     * Composes the 32x32 icon canvas from already-decoded glyphs: each glyph box-averaged into a
+     * 15x15 box and written at its count's layout slot, in list order (the spell's stream order).
+     * Pure integer math with no client state - it touches neither the resource stack nor the
+     * texture manager - so the baked-icon check runs the very code the game runs. Glyphs of any
+     * square size compose (small ones are nearest-sampled up, large ones box-averaged down); the
+     * callers reject non-square sources before they reach this method.
+     *
+     * @param glyphs
+     *            the decoded element glyphs in the spell's stream order (2..4 of them)
+     * @return the composed canvas, or null when the glyph count has no layout
+     */
+    public static BufferedImage composeCanvas(List<BufferedImage> glyphs) {
+        int[][] slots = LAYOUTS.get(glyphs.size());
+        if (slots == null) {
+            return null;
+        }
+        BufferedImage composed = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+        for (int i = 0; i < glyphs.size(); i++) {
+            BufferedImage small = boxScale(glyphs.get(i), GLYPH_SIZE, GLYPH_SIZE);
+            for (int dy = 0; dy < GLYPH_SIZE; dy++) {
+                for (int dx = 0; dx < GLYPH_SIZE; dx++) {
+                    composite(composed, slots[i][0] + dx, slots[i][1] + dy, small.getRGB(dx, dy));
+                }
+            }
+        }
+        return composed;
+    }
+
+    /**
      * Premultiplied box average into a dw x dh image: each destination pixel averages the source
      * block that maps to it, so thin glyph features (a symbol's top bar, the dot inside the Gold
-     * ring) survive the downscale instead of being sampled away by nearest-neighbour. Integer-only
-     * and renderer-independent, so the baked static icons regenerate byte-identically from this
-     * same code (the D82 icon regeneration pass mirrors it line for line).
+     * ring) survive the downscale instead of being sampled away by nearest-neighbour. A source
+     * smaller than the box (a pack's 8x8 reskin) would map some destination pixels to an empty
+     * block, so the block is widened to at least one source pixel and that pixel is
+     * nearest-sampled: any square size composes, the way the old drawImage path allowed, instead of
+     * striping. Integer-only and renderer-independent, so the baked static icons regenerate pixel
+     * for pixel from this same code (verified by the baked-icon check).
      *
      * @param src
      *            the glyph texture at its native size
@@ -150,10 +225,10 @@ public final class SpellIconGenerator {
         BufferedImage out = new BufferedImage(dw, dh, BufferedImage.TYPE_INT_ARGB);
         for (int dy = 0; dy < dh; dy++) {
             int y0 = dy * src.getHeight() / dh;
-            int y1 = (dy + 1) * src.getHeight() / dh;
+            int y1 = Math.max((dy + 1) * src.getHeight() / dh, y0 + 1);
             for (int dx = 0; dx < dw; dx++) {
                 int x0 = dx * src.getWidth() / dw;
-                int x1 = (dx + 1) * src.getWidth() / dw;
+                int x1 = Math.max((dx + 1) * src.getWidth() / dw, x0 + 1);
                 long sumA = 0;
                 long sumR = 0;
                 long sumG = 0;
@@ -183,10 +258,12 @@ public final class SpellIconGenerator {
     }
 
     /**
-     * Sources one downscaled glyph pixel over the canvas pixel at (x, y) - the canvas starts fully
-     * transparent and glyph boxes meet edge to edge (and may yet overlap), so source-over keeps the
-     * background transparent and blends instead of replacing. Mirrored line for line by the
-     * baked-icon regeneration pass.
+     * Writes one downscaled glyph pixel at (x, y) unless it is fully transparent. The canvas starts
+     * transparent and every layout slot is disjoint (the three layouts pack the 15x15 boxes edge to
+     * edge without shared pixels), so each canvas pixel is written at most once: source-over onto
+     * transparency reduces to a plain write, which also keeps the packed channels clear of the
+     * overflow that separately-floored blend terms could reach. A future overlapping layout would
+     * overwrite rather than blend.
      *
      * @param target
      *            the 32x32 composition being built
@@ -198,22 +275,10 @@ public final class SpellIconGenerator {
      *            the glyph pixel to draw
      */
     private static void composite(BufferedImage target, int x, int y, int argb) {
-        int sa = (argb >>> 24) & 0xFF;
-        if (sa == 0) {
+        if ((argb >>> 24) == 0) {
             return;
         }
-        int dst = target.getRGB(x, y);
-        int da = (dst >>> 24) & 0xFF;
-        int outA = sa + da * (255 - sa) / 255;
-        if (outA == 0) {
-            return;
-        }
-        int r = (((argb >>> 16) & 0xFF) * sa + ((dst >>> 16) & 0xFF) * da * (255 - sa) / 255)
-            / outA;
-        int g = (((argb >>> 8) & 0xFF) * sa + ((dst >>> 8) & 0xFF) * da * (255 - sa) / 255)
-            / outA;
-        int b = ((argb & 0xFF) * sa + (dst & 0xFF) * da * (255 - sa) / 255) / outA;
-        target.setRGB(x, y, (outA << 24) | (r << 16) | (g << 8) | b);
+        target.setRGB(x, y, argb);
     }
 
     /** BufferedImage hands out ARGB; NativeImage's setPixelRGBA stores ABGR - swap red and blue. */
@@ -221,6 +286,17 @@ public final class SpellIconGenerator {
         return (argb & 0xFF00FF00) | ((argb >>> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
+    /**
+     * Decodes one glyph from the live resource stack, reporting a malformed pack texture instead of
+     * failing silently.
+     *
+     * @param minecraft
+     *            the client whose resource stack is read
+     * @param id
+     *            the glyph texture id
+     * @return the decoded image, or null when the resource is absent (the documented resolution
+     *         order falls through) or undecodable (logged)
+     */
     private static BufferedImage read(Minecraft minecraft, ResourceLocation id) {
         try {
             Optional<Resource> resource = minecraft.getResourceManager().getResource(id);
@@ -228,9 +304,16 @@ public final class SpellIconGenerator {
                 return null;
             }
             try (InputStream in = resource.get().open()) {
-                return ImageIO.read(in);
+                BufferedImage image = ImageIO.read(in);
+                if (image == null) {
+                    LOGGER.warn("Glyph texture {} is not a decodable image; the icon falls back "
+                        + "to the static file", id);
+                }
+                return image;
             }
         } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Unreadable glyph texture {}; the icon falls back to the static file",
+                id, e);
             return null; // an unreadable source answers no icon; the order falls through
         }
     }

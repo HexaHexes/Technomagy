@@ -1,8 +1,10 @@
 package zone.moddev.mc.technomagy.spell;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -100,6 +102,41 @@ public enum PlayerSpell {
             }
         }
         return Collections.unmodifiableMap(units);
+    }
+
+    /**
+     * Lists this spell's elemental inputs in stream order (D82's icon layout): a primary-first walk
+     * of the {@linkplain #stream() construction's} leaves, so Forge reads Earth then Fire and
+     * Growth reads Water, Light then Earth - the order DESIGN.md pins the generated icon's layout
+     * slots to. Distinct elements appear once, at first occurrence, because a spell's element count
+     * (D82's tab membership) counts distinct tags: a future construction that repeats an element
+     * still wears one glyph for it.
+     *
+     * <p>
+     * Unlike {@link #inputUnits()}, which answers an EnumMap in ManaType order - right for totals,
+     * wrong for layout - this keeps the construction's own presentation order. The tree is walked
+     * with an explicit stack, pushing each merge's secondary input behind its primary so the
+     * primary leaf pops next ({@link SpellStream#split()} answers in slot order).
+     *
+     * @return unmodifiable distinct elements in primary-first stream order (2..4 today)
+     */
+    List<ManaType> streamOrder() {
+        List<ManaType> order = new ArrayList<>();
+        var pending = new ArrayDeque<SpellStream<ManaType>>();
+        pending.push(stream());
+        while (!pending.isEmpty()) {
+            var node = pending.pop();
+            if (node.isElement()) {
+                if (!order.contains(node.element())) {
+                    order.add(node.element());
+                }
+            } else {
+                var inputs = node.split();
+                pending.push(inputs.get(1)); // secondary goes in behind...
+                pending.push(inputs.get(0)); // ...so the primary leaf pops next
+            }
+        }
+        return List.copyOf(order);
     }
 
     /** Constructs a commutative base pair of one unit per element. */

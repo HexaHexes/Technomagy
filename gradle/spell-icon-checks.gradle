@@ -1,0 +1,32 @@
+// Baked spell-icon verification (D82, AGENTS.md sections 3 and 4): composes every spell with the
+// production generator math and asserts the committed PNGs match pixel for pixel, so the generated
+// texture and the static fallback cannot drift apart. Dependency-free main() check in the same
+// convention as spell-heuristics.gradle - no test framework, hooked into check. The old out-of-tree
+// regeneration mirror is retired: -PblessSpellIcons rewrites the committed PNGs from this code.
+sourceSets {
+    iconCheck {
+        java.srcDir 'src/iconCheck/java'
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += output + sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+
+def spellIconChecks = tasks.register('runSpellIconChecks', JavaExec) {
+    group = 'verification'
+    description = 'Composes every spell icon and verifies the committed baked PNGs match.'
+    dependsOn tasks.named('iconCheckClasses')
+    classpath = sourceSets.iconCheck.runtimeClasspath
+    mainClass = 'zone.moddev.mc.technomagy.spell.SpellIconChecks'
+    systemProperty 'technomagy.resources', file('src/main/resources').absolutePath
+    // -PblessSpellIcons rewrites the committed PNGs from the same code instead of comparing.
+    if (providers.gradleProperty('blessSpellIcons').isPresent()) {
+        systemProperty 'technomagy.blessSpellIcons', 'true'
+    }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.named('check') {
+    dependsOn spellIconChecks
+}

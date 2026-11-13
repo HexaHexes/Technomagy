@@ -8,6 +8,7 @@ plugins {
 // Import-block step for Spotless and its fixture tests (AGENTS.md section 2).
 apply from: 'gradle/import-blocks.gradle'
 apply from: 'gradle/spell-heuristics.gradle'
+apply from: 'gradle/spell-icon-checks.gradle'
 
 // Shared Eclipse JDT profile: four-space blocks and four-space continuations.
 // VS Code uses the same XML profile; import grouping remains a separate custom step.

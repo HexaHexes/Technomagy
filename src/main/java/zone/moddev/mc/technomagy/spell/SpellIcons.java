@@ -41,14 +41,30 @@ final class SpellIcons {
         if (spell.isEmpty()) {
             return null;
         }
-        List<ManaType> elements = List.copyOf(spell.get().inputUnits().keySet());
-        if (elements.size() < 2 || elements.size() > 4) {
+        List<ResourceLocation> glyphs = glyphsFor(spell.get());
+        if (glyphs.size() < 2 || glyphs.size() > 4) {
             return null; // a single-element spell wears its entry's own icon
         }
+        return SpellIconGenerator.compose(abilityId, glyphs);
+    }
+
+    /**
+     * The glyph textures one spell composes from, in the spell's stream order (D82): each element
+     * of {@link PlayerSpell#streamOrder()} mapped to its mastery-entry symbol, so Forge answers
+     * Earth then Fire and Growth Water, Light then Earth - the order DESIGN.md pins the layout
+     * slots to. This is the single source the provider and the baked-icon check both read, so a
+     * change to the ordering cannot leave the generated texture and the committed PNGs apart.
+     *
+     * @param spell
+     *            the spell being iconified
+     * @return the element glyph texture ids in stream order (two to four today)
+     */
+    static List<ResourceLocation> glyphsFor(PlayerSpell spell) {
+        List<ManaType> elements = spell.streamOrder();
         List<ResourceLocation> glyphs = new ArrayList<>(elements.size());
         for (ManaType element : elements) {
             glyphs.add(ElementalMastery.entryIcon(element));
         }
-        return SpellIconGenerator.compose(abilityId, glyphs);
+        return glyphs;
     }
 }
