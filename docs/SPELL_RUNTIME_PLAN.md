@@ -229,11 +229,11 @@ holds four-element abilities (none exists yet, so hotbar hides the
 empty tab) and stays text-only until a symbol is chosen. The spells'
 per-spell icons are generated at render time by an IconProvider from
 the element symbols (pack-aware: the glyphs composite onto a
-transparent 32x32, each box-averaged into a 10-pixel box by integer
+transparent 32x32, each box-averaged into a 15-pixel box by integer
 math so thin features survive, with no placeholder underneath; duo on
 the top-left to bottom-right diagonal, trio in a triangle, quadra in a
-cross; the baked files regenerate by the same math and remain the
-static fallback) and the entries read the element buckets D80 routes
+diagonal X across the quadrants; the baked files regenerate by the
+same math and remain the static fallback) and the entries read the element buckets D80 routes
 into and present each bucket's level as a meter once the snapshot
 answers.
 Single is learned from the start (a future item-tag

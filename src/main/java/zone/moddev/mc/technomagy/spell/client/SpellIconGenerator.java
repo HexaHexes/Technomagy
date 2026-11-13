@@ -30,11 +30,11 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 /**
  * Render-time icon generation for the sixteen spells (D82): composes a duo, trio or quadra icon
  * from the element glyphs the common side resolved, laid out on a transparent 32x32 canvas at the
- * count's layout - diagonal, triangle, cross - so a resource pack that reskins an element symbol
- * flows into the generated icon. Client-state only: reads the live resource stack, registers one
- * dynamic texture per ability, and drops the whole cache when resources reload so a pack swap
- * regenerates. Nothing throws to the caller - an unreadable source answers null and the documented
- * resolution order falls to the definition's static icon.
+ * count's layout - diagonal, triangle, X - so a resource pack that reskins an element symbol flows
+ * into the generated icon. Client-state only: reads the live resource stack, registers one dynamic
+ * texture per ability, and drops the whole cache when resources reload so a pack swap regenerates.
+ * Nothing throws to the caller - an unreadable source answers null and the documented resolution
+ * order falls to the definition's static icon.
  *
  * <p>
  * The baked static icons are the same composition produced by the same integer math (the D82 icon
@@ -47,13 +47,18 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 public final class SpellIconGenerator {
 
     /** The box each element glyph is drawn into, matching the baked static icons (D82). */
-    private static final int GLYPH_SIZE = 10;
+    private static final int GLYPH_SIZE = 15;
 
-    /** Layout slots per glyph count, in the spell's own stream order (D82). */
+    /**
+     * Layout slots per glyph count, in the spell's own stream order (D82): each 15x15 box packed
+     * one pixel from the canvas edge, so a duo reads as a diagonal, a trio as a triangle and a
+     * quadra as a diagonal X - no two boxes overlap at the larger size (a plus-sign cross would
+     * force its four arms to collide in the middle).
+     */
     private static final Map<Integer, int[][]> LAYOUTS = Map.of(
-        2, new int[][]{{2, 2}, {20, 20}},
-        3, new int[][]{{11, 1}, {1, 20}, {20, 20}},
-        4, new int[][]{{11, 1}, {20, 11}, {11, 20}, {1, 11}});
+        2, new int[][]{{1, 1}, {16, 16}},
+        3, new int[][]{{8, 1}, {1, 16}, {16, 16}},
+        4, new int[][]{{1, 1}, {16, 1}, {1, 16}, {16, 16}});
 
     /** Generated texture ids by ability, dropped on resource reload (client thread only). */
     private static final Map<ResourceLocation, ResourceLocation> generated = new HashMap<>();
@@ -179,8 +184,9 @@ public final class SpellIconGenerator {
 
     /**
      * Sources one downscaled glyph pixel over the canvas pixel at (x, y) - the canvas starts fully
-     * transparent and glyph boxes may touch at a corner, so overlap blends instead of replacing.
-     * Mirrored line for line by the baked-icon regeneration pass.
+     * transparent and glyph boxes meet edge to edge (and may yet overlap), so source-over keeps the
+     * background transparent and blends instead of replacing. Mirrored line for line by the
+     * baked-icon regeneration pass.
      *
      * @param target
      *            the 32x32 composition being built
