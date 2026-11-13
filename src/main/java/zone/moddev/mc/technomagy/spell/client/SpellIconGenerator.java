@@ -1,7 +1,5 @@
 package zone.moddev.mc.technomagy.spell.client;
 
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 import java.io.IOException;
@@ -31,19 +29,25 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 
 /**
  * Render-time icon generation for the sixteen spells (D82): composes a duo, trio or quadra icon
- * from the shared placeholder and the element glyphs the common side resolved, at the count's
- * layout - diagonal, triangle, cross - so a resource pack that reskins an element symbol or the
- * placeholder flows into the generated icon. Client-state only: reads the live resource stack,
- * registers one dynamic texture per ability, and drops the whole cache when resources reload so a
- * pack swap regenerates. Nothing throws to the caller - an unreadable source answers null and the
- * documented resolution order falls to the definition's static icon.
+ * from the element glyphs the common side resolved, laid out on a transparent 32x32 canvas at the
+ * count's layout - diagonal, triangle, cross - so a resource pack that reskins an element symbol
+ * flows into the generated icon. Client-state only: reads the live resource stack, registers one
+ * dynamic texture per ability, and drops the whole cache when resources reload so a pack swap
+ * regenerates. Nothing throws to the caller - an unreadable source answers null and the documented
+ * resolution order falls to the definition's static icon.
+ *
+ * <p>
+ * The baked static icons are the same composition produced by the same integer math (the D82 icon
+ * regeneration pass mirrors {@link #boxScale} and {@link #composite} line for line): identical
+ * glyph box, layout slots and downscale, so the generated texture and the fall-back file agree
+ * pixel for pixel.
+ * </p>
  */
 @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public final class SpellIconGenerator {
 
-    /** The shared placeholder each generated icon composes over (the old static spell icon). */
-    private static final ResourceLocation PLACEHOLDER = ResourceLocation
-        .fromNamespaceAndPath("minecraft", "textures/item/blaze_rod.png");
+    /** The box each element glyph is drawn into, matching the baked static icons (D82). */
+    private static final int GLYPH_SIZE = 10;
 
     /** Layout slots per glyph count, in the spell's own stream order (D82). */
     private static final Map<Integer, int[][]> LAYOUTS = Map.of(
@@ -97,25 +101,18 @@ public final class SpellIconGenerator {
         if (slots == null) {
             return null; // a single-element spell wears its entry's icon; deeper counts abstain
         }
-        BufferedImage placeholder = read(minecraft, PLACEHOLDER);
-        if (placeholder == null) {
-            return null;
-        }
         BufferedImage composed = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = composed.createGraphics();
-        try {
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            graphics.drawImage(placeholder, 0, 0, 32, 32, null);
-            for (int i = 0; i < glyphs.size(); i++) {
-                BufferedImage glyph = read(minecraft, glyphs.get(i));
-                if (glyph == null) {
-                    return null;
-                }
-                graphics.drawImage(glyph, slots[i][0], slots[i][1], null);
+        for (int i = 0; i < glyphs.size(); i++) {
+            BufferedImage glyph = read(minecraft, glyphs.get(i));
+            if (glyph == null) {
+                return null;
             }
-        } finally {
-            graphics.dispose();
+            BufferedImage small = boxScale(glyph, GLYPH_SIZE, GLYPH_SIZE);
+            for (int dy = 0; dy < GLYPH_SIZE; dy++) {
+                for (int dx = 0; dx < GLYPH_SIZE; dx++) {
+                    composite(composed, slots[i][0] + dx, slots[i][1] + dy, small.getRGB(dx, dy));
+                }
+            }
         }
         NativeImage pixels = new NativeImage(32, 32, true);
         for (int y = 0; y < 32; y++) {
@@ -127,6 +124,90 @@ public final class SpellIconGenerator {
             "generated/" + abilityId.getPath());
         minecraft.getTextureManager().register(id, new DynamicTexture(pixels));
         return id;
+    }
+
+    /**
+     * Premultiplied box average into a dw x dh image: each destination pixel averages the source
+     * block that maps to it, so thin glyph features (a symbol's top bar, the dot inside the Gold
+     * ring) survive the downscale instead of being sampled away by nearest-neighbour. Integer-only
+     * and renderer-independent, so the baked static icons regenerate byte-identically from this
+     * same code (the D82 icon regeneration pass mirrors it line for line).
+     *
+     * @param src
+     *            the glyph texture at its native size
+     * @param dw
+     *            destination width in pixels
+     * @param dh
+     *            destination height in pixels
+     * @return the downscaled glyph; fully transparent source blocks stay transparent
+     */
+    private static BufferedImage boxScale(BufferedImage src, int dw, int dh) {
+        BufferedImage out = new BufferedImage(dw, dh, BufferedImage.TYPE_INT_ARGB);
+        for (int dy = 0; dy < dh; dy++) {
+            int y0 = dy * src.getHeight() / dh;
+            int y1 = (dy + 1) * src.getHeight() / dh;
+            for (int dx = 0; dx < dw; dx++) {
+                int x0 = dx * src.getWidth() / dw;
+                int x1 = (dx + 1) * src.getWidth() / dw;
+                long sumA = 0;
+                long sumR = 0;
+                long sumG = 0;
+                long sumB = 0;
+                int count = (y1 - y0) * (x1 - x0);
+                for (int y = y0; y < y1; y++) {
+                    for (int x = x0; x < x1; x++) {
+                        int p = src.getRGB(x, y);
+                        int a = (p >>> 24) & 0xFF;
+                        sumA += a;
+                        sumR += ((p >>> 16) & 0xFF) * a;
+                        sumG += ((p >>> 8) & 0xFF) * a;
+                        sumB += (p & 0xFF) * a;
+                    }
+                }
+                if (sumA == 0) {
+                    continue;
+                }
+                int a = (int) (sumA / count);
+                int r = (int) (sumR / sumA);
+                int g = (int) (sumG / sumA);
+                int b = (int) (sumB / sumA);
+                out.setRGB(dx, dy, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Sources one downscaled glyph pixel over the canvas pixel at (x, y) - the canvas starts fully
+     * transparent and glyph boxes may touch at a corner, so overlap blends instead of replacing.
+     * Mirrored line for line by the baked-icon regeneration pass.
+     *
+     * @param target
+     *            the 32x32 composition being built
+     * @param x
+     *            destination column
+     * @param y
+     *            destination row
+     * @param argb
+     *            the glyph pixel to draw
+     */
+    private static void composite(BufferedImage target, int x, int y, int argb) {
+        int sa = (argb >>> 24) & 0xFF;
+        if (sa == 0) {
+            return;
+        }
+        int dst = target.getRGB(x, y);
+        int da = (dst >>> 24) & 0xFF;
+        int outA = sa + da * (255 - sa) / 255;
+        if (outA == 0) {
+            return;
+        }
+        int r = (((argb >>> 16) & 0xFF) * sa + ((dst >>> 16) & 0xFF) * da * (255 - sa) / 255)
+            / outA;
+        int g = (((argb >>> 8) & 0xFF) * sa + ((dst >>> 8) & 0xFF) * da * (255 - sa) / 255)
+            / outA;
+        int b = ((argb & 0xFF) * sa + (dst & 0xFF) * da * (255 - sa) / 255) / outA;
+        target.setRGB(x, y, (outA << 24) | (r << 16) | (g << 8) | b);
     }
 
     /** BufferedImage hands out ARGB; NativeImage's setPixelRGBA stores ABGR - swap red and blue. */
