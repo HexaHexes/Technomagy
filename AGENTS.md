@@ -13,6 +13,10 @@ before writing code, and follow its implementation phases in order.
 - `./gradlew build` builds the mod jar.
 - `./gradlew runClient` / `./gradlew runServer` launch dev instances.
 - `./gradlew check` runs every test and check below; `build` includes it.
+- `./gradlew runSpellIconChecks` composes every spell icon from the committed glyph files and
+  asserts the baked PNGs match, pixel for pixel (it is part of `check`); when the composition
+  itself changes, `./gradlew blessSpellIcons` regenerates the committed baked PNGs from that same
+  code.
 - `./gradlew pureTest` runs pure-Java unit tests (`src/pureTest`, JUnit 5). Minecraft and NeoForge
   are not on its classpath, so `planner` code that touches them fails to compile or load there.
 - `./gradlew test` runs unit tests that need Minecraft (`src/test`, JUnit 5), inside a NeoForge

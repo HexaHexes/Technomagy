@@ -1,0 +1,59 @@
+// Baked spell-icon verification (D82, AGENTS.md sections 3 and 4): composes every spell with the
+// production generator math and asserts the committed PNGs match pixel for pixel, so the generated
+// texture and the static fallback cannot drift apart. The check class runs on the mod's own
+// classpath (Minecraft present, but no bootstrap and no test framework) in the main() convention
+// of spell-heuristics.gradle. The old out-of-tree regeneration mirror is retired: the separate
+// blessSpellIcons task rewrites the committed PNGs from this same code, and no build or CI run
+// can reach it - check only ever verifies.
+sourceSets {
+    iconCheck {
+        java.srcDir 'src/iconCheck/java'
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += output + sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+
+def configureIconCheck = { JavaExec task, boolean bless ->
+    // The classpath input carries the compiled classes: resolving it runs the compiles, and
+    // Gradle treats it as the task's @Classpath input, so no dependsOn is needed.
+    task.classpath = sourceSets.iconCheck.runtimeClasspath
+    task.mainClass = 'zone.moddev.mc.technomagy.spell.SpellIconChecks'
+    task.systemProperty 'technomagy.resources', file('src/main/resources').absolutePath
+    if (bless) {
+        task.systemProperty 'technomagy.blessSpellIcons', 'true'
+    }
+    task.javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+// Verification, part of check. JavaExec.classpath already declares the compiled classes as its
+// @Classpath input (and building it runs the compiles), so the only extra inputs are the texture
+// sources; the marker output lets Gradle skip the JVM entirely while they are unchanged.
+// The marker provider is captured (not the script's `layout`) so the action survives the
+// configuration cache.
+def markerFile = layout.buildDirectory.file('icon-checks/verified.marker')
+def spellIconChecks = tasks.register('runSpellIconChecks', JavaExec) {
+    group = 'verification'
+    description = 'Composes every spell icon and verifies the committed baked PNGs match.'
+    configureIconCheck(it, false)
+    inputs.dir('src/main/resources/assets/technomagy/textures/item')
+        .withPropertyName('glyphAndBakedTextures')
+    outputs.file(markerFile).withPropertyName('verificationMarker')
+    doLast {
+        def marker = markerFile.get().asFile
+        marker.parentFile.mkdirs()
+        marker.text = 'baked spell icons verified\n'
+    }
+}
+
+// Regeneration, deliberately outside check: run it by name only (./gradlew blessSpellIcons).
+def blessSpellIcons = tasks.register('blessSpellIcons', JavaExec) {
+    group = 'verification'
+    description = 'Rewrites the committed baked spell icons from the generator.'
+    configureIconCheck(it, true)
+}
+
+tasks.named('check') {
+    dependsOn spellIconChecks
+}

@@ -1,8 +1,10 @@
 package zone.moddev.mc.technomagy.spell;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -81,25 +83,81 @@ public enum PlayerSpell {
      * <p>
      * Every leaf of the construction tree is one grouped input of whole units (D47), so summing the
      * leaves by element gives exactly the mana the player supplies. For example, Erode is one Earth
-     * and one Air; Growth is one Water, one Light, and one Earth. The tree is walked with an
-     * explicit stack, matching {@link SpellStream}'s own traversal style. Raw never appears because
-     * no player spell is constructed from Raw.
+     * and one Air; Growth is one Water, one Light, and one Earth. Raw never appears because no
+     * player spell is constructed from Raw.
      *
      * @return unmodifiable positive units by element, containing only elements the spell uses
      */
     public Map<ManaType, Integer> inputUnits() {
         Map<ManaType, Integer> units = new EnumMap<>(ManaType.class);
+        for (Leaf leaf : leaves()) {
+            units.merge(leaf.element(), leaf.units(), Math::addExact);
+        }
+        return Collections.unmodifiableMap(units);
+    }
+
+    /**
+     * Lists this spell's elemental inputs in stream order (D82's icon layout): the primary-first
+     * leaf walk of the {@linkplain #stream() construction}, so Forge reads Earth then Fire and
+     * Growth reads Water, Light then Earth - the order DESIGN.md pins the generated icon's layout
+     * slots to. Distinct elements appear once, at first occurrence, because a spell's element count
+     * (D82's tab membership) counts distinct tags: a future construction that repeats an element
+     * still wears one glyph for it.
+     *
+     * <p>
+     * Unlike {@link #inputUnits()}, which answers an EnumMap in ManaType order - right for totals,
+     * wrong for layout - this keeps the construction's own presentation order. The walk itself is
+     * {@link #leaves()}, shared with {@link #inputUnits()} so the two cannot drift.
+     *
+     * @return unmodifiable distinct elements in primary-first stream order (2..4 today)
+     */
+    List<ManaType> streamOrder() {
+        List<ManaType> order = new ArrayList<>();
+        for (Leaf leaf : leaves()) {
+            if (!order.contains(leaf.element())) {
+                order.add(leaf.element());
+            }
+        }
+        return List.copyOf(order);
+    }
+
+    /**
+     * One elemental input of the construction tree: a leaf's flavor and its grouped whole-unit
+     * amount (D47).
+     *
+     * @param element
+     *            the leaf's flavor
+     * @param units
+     *            the grouped units this leaf contributes
+     */
+    private record Leaf(ManaType element, int units) {
+    }
+
+    /**
+     * The {@linkplain #stream() construction's} elemental leaves in primary-first slot order: an
+     * explicit-stack walk matching {@link SpellStream}'s own traversal style, pushing each merge's
+     * secondary input behind its primary so the primary leaf pops next ({@link SpellStream#split()}
+     * answers in slot order). This is the single traversal behind {@link #inputUnits()}, which sums
+     * it, and {@link #streamOrder()}, which dedups it, so the two stay in step when
+     * {@link SpellStream} gains node kinds.
+     *
+     * @return the leaves in construction order, repeated elements included
+     */
+    private List<Leaf> leaves() {
+        List<Leaf> order = new ArrayList<>();
         var pending = new ArrayDeque<SpellStream<ManaType>>();
         pending.push(stream());
         while (!pending.isEmpty()) {
             var node = pending.pop();
             if (node.isElement()) {
-                units.merge(node.element(), node.units(), Math::addExact);
+                order.add(new Leaf(node.element(), node.units()));
             } else {
-                node.split().forEach(pending::push);
+                var inputs = node.split();
+                pending.push(inputs.get(1)); // secondary goes in behind...
+                pending.push(inputs.get(0)); // ...so the primary leaf pops next
             }
         }
-        return Collections.unmodifiableMap(units);
+        return order;
     }
 
     /** Constructs a commutative base pair of one unit per element. */

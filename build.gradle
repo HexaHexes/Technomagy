@@ -8,6 +8,7 @@ plugins {
 // Import-block step for Spotless and its fixture tests (AGENTS.md section 2).
 apply from: 'gradle/import-blocks.gradle'
 apply from: 'gradle/spell-heuristics.gradle'
+apply from: 'gradle/spell-icon-checks.gradle'
 
 // Shared Eclipse JDT profile: four-space blocks and four-space continuations.
 // VS Code uses the same XML profile; import grouping remains a separate custom step.
@@ -112,8 +113,8 @@ repositories {
 
 dependencies {
     implementation "zone.moddev.mc.skysleylines:SkysLeyLines:${skysleylines_version}"
-    implementation 'org.bitwisemadness.abilitycore:ability_core:1.1.0-alpha.08'
-    implementation 'org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.1-alpha.09'
+    implementation 'org.bitwisemadness.abilitycore:ability_core:1.1.0-alpha.09'
+    implementation 'org.bitwisemadness.abilityhotbar:ability_hotbar:1.0.1-alpha.12'
     // Guidebook (dev.gigaherz.guidebook) has no 1.21.1 release; books.json is still shipped and
     // will be picked up if Guidebook is installed.
     implementation "zone.moddev.mc.lib:mmdlib:${mmdlib_version}"
