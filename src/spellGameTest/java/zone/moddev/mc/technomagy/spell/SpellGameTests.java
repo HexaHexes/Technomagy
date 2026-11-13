@@ -1140,7 +1140,7 @@ public final class SpellGameTests {
         for (ManaType flavor : ManaType.FLAVORS) {
             var entry = registry.get(ElementalMastery.id(flavor));
             h.assertTrue(entry != null, "Missing elemental mastery entry " + flavor);
-            h.assertTrue(entry.activationType() == ActivationType.UNKNOWN,
+            h.assertTrue(entry.activationType() == ActivationType.NONE,
                 "Entries must be non-castable, got " + entry.activationType());
             h.assertTrue(entry.costs().isEmpty(), "Entries must declare no costs");
             h.assertTrue("static".equals(entry.amountResolver()),

@@ -248,9 +248,9 @@ final class ElementalMastery {
 
     /**
      * Builds one elemental mastery entry's definition (D82): non-castable by construction -
-     * {@code UNKNOWN} activation is refused fail-closed, the empty cost list and {@code static}
-     * resolver mean no pricing can ever run - carrying its one element tag and the boost
-     * description.
+     * {@code NONE} activation declares no activation path at all, the empty cost list and
+     * {@code static} resolver mean no pricing can ever run - carrying its one element tag and the
+     * boost description.
      *
      * @param element
      *            the entry's element
@@ -262,7 +262,7 @@ final class ElementalMastery {
             "mastery.technomagy." + name,
             entryIcon(element),
             ResourceLocation.fromNamespaceAndPath("technomagy", "mastery"),
-            ActivationType.UNKNOWN,
+            ActivationType.NONE,
             List.of(),
             "all",
             "static",

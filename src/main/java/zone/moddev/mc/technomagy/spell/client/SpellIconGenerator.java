@@ -57,6 +57,12 @@ public final class SpellIconGenerator {
     private static final int GLYPH_SIZE = 15;
 
     /**
+     * The icon canvas edge in pixels (D82): baked files and generated textures are both square on
+     * it, in this source set and in the baked-icon check.
+     */
+    public static final int CANVAS_SIZE = 32;
+
+    /**
      * Layout slots per glyph count (D82): each 15x15 box packed one pixel from the canvas edge, so
      * a duo reads as a diagonal, a trio as a triangle and a quadra as a diagonal X - no two boxes
      * overlap at the larger size (a plus-sign cross would force its four arms to collide in the
@@ -68,12 +74,12 @@ public final class SpellIconGenerator {
         4, new int[][]{{1, 1}, {16, 1}, {1, 16}, {16, 16}});
 
     /**
-     * Generated texture ids by ability (client thread only), dropped on resource reload so a pack
-     * swap regenerates. A refusal is cached as an empty optional beside a registered id, so an
-     * unreadable or rejected glyph is diagnosed once per reload instead of every frame the hotbar
-     * draw chain asks the provider.
+     * Generated texture ids by ability (render thread only - {@link #compose} refuses any other
+     * thread), dropped on resource reload so a pack swap regenerates. A refusal is cached as an
+     * empty optional beside a registered id, so an unreadable or rejected glyph is diagnosed once
+     * per reload instead of every frame the hotbar draw chain asks the provider.
      */
-    private static final Map<ResourceLocation, Optional<ResourceLocation>> generated = new HashMap<>();
+    private static final Map<ResourceLocation, Optional<ResourceLocation>> icons = new HashMap<>();
 
     private SpellIconGenerator() {
     }
@@ -91,10 +97,10 @@ public final class SpellIconGenerator {
             protected void apply(Void prepared, ResourceManager manager, ProfilerFiller profiler) {
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft != null) {
-                    generated.values().stream().flatMap(Optional::stream)
+                    icons.values().stream().flatMap(Optional::stream)
                         .forEach(minecraft.getTextureManager()::release);
                 }
-                generated.clear();
+                icons.clear();
             }
         });
     }
@@ -103,13 +109,16 @@ public final class SpellIconGenerator {
      * Composes and registers one ability's icon, or answers null when it cannot - the resolution
      * order then falls to the definition's static icon. Every answer, including a refusal, is
      * cached against the ability id until resources reload, so a repeated ask is a map lookup
-     * rather than a PNG decode, a box scale and a texture upload.
+     * rather than a PNG decode, a box scale and a texture upload. The cache and the texture manager
+     * belong to the render thread, so any other thread (an integrated-server ask, say) answers null
+     * without touching either and the render thread answers on the next frame.
      *
      * @param abilityId
      *            the ability being drawn (names the generated texture)
      * @param glyphs
-     *            the element glyph textures in the spell's stream order (2..4 of them)
-     * @return the registered dynamic texture's id, or null for no answer
+     *            the element glyph textures in the spell's stream order
+     * @return the registered dynamic texture's id, or null for no answer, including an answer
+     *         requested off the render thread
      */
     public static ResourceLocation compose(ResourceLocation abilityId,
         List<ResourceLocation> glyphs) {
@@ -117,13 +126,30 @@ public final class SpellIconGenerator {
         if (minecraft == null) {
             return null; // no client yet - there is nothing to cache an answer against
         }
-        Optional<ResourceLocation> cached = generated.get(abilityId);
+        if (!minecraft.isSameThread()) {
+            return null; // the render thread owns the cache and the texture manager
+        }
+        Optional<ResourceLocation> cached = icons.get(abilityId);
         if (cached != null) {
             return cached.orElse(null);
         }
         ResourceLocation id = composeAndRegister(minecraft, abilityId, glyphs);
-        generated.put(abilityId, Optional.ofNullable(id));
+        icons.put(abilityId, Optional.ofNullable(id));
         return id;
+    }
+
+    /**
+     * Whether a glyph count has a layout slot set (D82): the one executable statement of the
+     * system's glyph-count range, read by the provider, the generator itself and the baked-icon
+     * check so they cannot drift - a future one-glyph layout for single-element casts would be
+     * added to {@code LAYOUTS} and nowhere else.
+     *
+     * @param glyphCount
+     *            how many glyphs the caller proposes to compose
+     * @return true when the layout table holds slots for that count
+     */
+    public static boolean hasLayout(int glyphCount) {
+        return LAYOUTS.containsKey(glyphCount);
     }
 
     /**
@@ -141,7 +167,7 @@ public final class SpellIconGenerator {
      */
     private static ResourceLocation composeAndRegister(Minecraft minecraft,
         ResourceLocation abilityId, List<ResourceLocation> glyphs) {
-        if (!LAYOUTS.containsKey(glyphs.size())) {
+        if (!hasLayout(glyphs.size())) {
             return null; // a single-element spell wears its entry's icon; deeper counts abstain
         }
         List<BufferedImage> decoded = new ArrayList<>(glyphs.size());
@@ -150,21 +176,18 @@ public final class SpellIconGenerator {
             if (image == null) {
                 return null;
             }
-            if (image.getWidth() != image.getHeight()) {
-                LOGGER.warn("Glyph {} is {}x{} rather than square - an animated strip cannot be "
-                    + "composed, so {} falls back to its static icon", glyph, image.getWidth(),
-                    image.getHeight(), abilityId);
-                return null;
-            }
             decoded.add(image);
         }
         BufferedImage composed = composeCanvas(decoded);
         if (composed == null) {
+            // composeCanvas has already reported the reason (a non-square glyph); name the caller
+            LOGGER.warn("The icon for {} could not be composed; it falls back to its static file",
+                abilityId);
             return null;
         }
-        NativeImage pixels = new NativeImage(32, 32, true);
-        for (int y = 0; y < 32; y++) {
-            for (int x = 0; x < 32; x++) {
+        NativeImage pixels = new NativeImage(CANVAS_SIZE, CANVAS_SIZE, true);
+        for (int y = 0; y < CANVAS_SIZE; y++) {
+            for (int x = 0; x < CANVAS_SIZE; x++) {
                 pixels.setPixelRGBA(x, y, toAbgr(composed.getRGB(x, y)));
             }
         }
@@ -179,19 +202,30 @@ public final class SpellIconGenerator {
      * 15x15 box and written at its count's layout slot, in list order (the spell's stream order).
      * Pure integer math with no client state - it touches neither the resource stack nor the
      * texture manager - so the baked-icon check runs the very code the game runs. Glyphs of any
-     * square size compose (small ones are nearest-sampled up, large ones box-averaged down); the
-     * callers reject non-square sources before they reach this method.
+     * square size compose (small ones are nearest-sampled up, large ones box-averaged down); a
+     * non-square source - an animated strip - is refused here, the one place both callers share,
+     * and reported, so no caller can let a strip into the box scale.
      *
      * @param glyphs
-     *            the decoded element glyphs in the spell's stream order (2..4 of them)
-     * @return the composed canvas, or null when the glyph count has no layout
+     *            the decoded element glyphs in the spell's stream order
+     * @return the composed canvas, or null when the glyph count has no layout or any glyph is not
+     *         square
      */
     public static BufferedImage composeCanvas(List<BufferedImage> glyphs) {
-        int[][] slots = LAYOUTS.get(glyphs.size());
-        if (slots == null) {
+        if (!hasLayout(glyphs.size())) {
             return null;
         }
-        BufferedImage composed = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+        for (int i = 0; i < glyphs.size(); i++) {
+            BufferedImage glyph = glyphs.get(i);
+            if (glyph.getWidth() != glyph.getHeight()) {
+                LOGGER.warn("Glyph #{} is {}x{} rather than square - an animated strip cannot be "
+                    + "composed", i, glyph.getWidth(), glyph.getHeight());
+                return null;
+            }
+        }
+        int[][] slots = LAYOUTS.get(glyphs.size());
+        BufferedImage composed = new BufferedImage(CANVAS_SIZE, CANVAS_SIZE,
+            BufferedImage.TYPE_INT_ARGB);
         for (int i = 0; i < glyphs.size(); i++) {
             BufferedImage small = boxScale(glyphs.get(i), GLYPH_SIZE, GLYPH_SIZE);
             for (int dy = 0; dy < GLYPH_SIZE; dy++) {

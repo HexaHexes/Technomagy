@@ -1127,8 +1127,8 @@ the element chips beneath each tab.
 **The six Single entries.** One non-castable ability per element -
 `technomagy:fire_mastery` through `technomagy:dark_mastery`, display
 names "Fire Mastery" through "Dark Mastery" - registered beside the
-spells with: activation `UNKNOWN` (permitted in data and refused
-fail-closed at activation: these are never cast), an empty cost list,
+spells with: activation `NONE` (no activation path exists: these
+are never cast), an empty cost list,
 strategy `all`, resolver `static` (no pricing can run), category
 `technomagy:mastery`, its one element tag, and a `description` data
 entry naming the spells that element boosts - fire: Forge, Lightning,

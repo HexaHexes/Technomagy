@@ -42,7 +42,7 @@ final class SpellIcons {
             return null;
         }
         List<ResourceLocation> glyphs = glyphsFor(spell.get());
-        if (glyphs.size() < 2 || glyphs.size() > 4) {
+        if (!SpellIconGenerator.hasLayout(glyphs.size())) {
             return null; // a single-element spell wears its entry's own icon
         }
         return SpellIconGenerator.compose(abilityId, glyphs);
