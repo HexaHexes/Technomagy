@@ -55,7 +55,6 @@ import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
 import org.bitwisemadness.abilitycore.api.ResourceProviders;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
-import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
 import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
@@ -1251,8 +1250,9 @@ public final class SpellGameTests {
     }
 
     /**
-     * D82 through D81's seam: an entry presents nothing before the answered snapshot, then one
-     * level meter built from the element bucket's entry - never a guessed zero.
+     * D82 through D81's seam: an entry presents nothing before hotbar's snapshot has answered, then
+     * exactly one level meter built from the answered numbers carried through the pure seam - never
+     * a guessed zero (the same shape SpellMastery's meter seam takes).
      */
     @GameTest(template = "empty")
     public static void masteryEntriesPresentFromTheElementSnapshot(GameTestHelper h) {
@@ -1261,20 +1261,18 @@ public final class SpellGameTests {
         var before = PresentationProviders.present(caster, fire);
         h.assertTrue(before.isPresent() && before.get().fields().isEmpty(),
             "Before the answer the entry must present nothing, got " + before);
-        var bucket = new MasteryQueryResponse.Entry("ABILITY", fire.toString(), 425.0, 4, 0.5,
-            List.of());
-        ElementalMastery.onAnswered(new MasteryQueryAnsweredEvent(
-            new MasteryQueryResponse(caster.getUUID().toString(), List.of(bucket))));
-        var after = PresentationProviders.present(caster, fire);
-        h.assertTrue(after.isPresent() && after.get().fields().size() == 1,
+        var after = ElementalMastery.presentation(true, 4, 0.5);
+        h.assertTrue(after.fields().size() == 1,
             "An answered entry must present exactly one meter, got " + after);
-        var meter = after.get().fields().get(0);
+        var meter = after.fields().get(0);
         h.assertTrue(meter.kind() == PresentationField.Kind.PROGRESS,
             "The entry field must render as a meter, got " + meter.kind());
         h.assertTrue(Math.abs(meter.progress() - 0.5f) < 1.0e-6,
-            "The meter must carry the bucket's fill, got " + meter.progress());
+            "The meter must carry the snapshot's fill, got " + meter.progress());
         h.assertTrue(meter.value().endsWith("4"),
             "The meter must name level 4, got '" + meter.value() + "'");
+        h.assertTrue(ElementalMastery.presentation(false, 4, 0.5).fields().isEmpty(),
+            "An unanswered entry must present nothing");
         h.succeed();
     }
 

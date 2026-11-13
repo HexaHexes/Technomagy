@@ -1,19 +1,15 @@
 package zone.moddev.mc.technomagy.spell;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
-
-import net.neoforged.neoforge.common.NeoForge;
 
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.api.AbilityPresentation;
@@ -23,9 +19,8 @@ import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
 import org.bitwisemadness.abilitycore.api.MasterySpec;
 import org.bitwisemadness.abilitycore.api.PresentationField;
 import org.bitwisemadness.abilitycore.api.PresentationProviders;
-import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
-import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.UnlockRule;
+import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
 
 import zone.moddev.mc.technomagy.mana.ManaType;
@@ -67,16 +62,6 @@ final class ElementalMastery {
     private static final List<String> ELEMENT_ORDER = ManaType.FLAVORS.stream()
         .map(ElementalMastery::tagName).toList();
 
-    /**
-     * The answered snapshot's element buckets (D82): client-side only, written when core posts the
-     * answer and read by the menu's render, so it stays on the client thread like hotbar's own
-     * snapshot store.
-     */
-    private static boolean answered;
-
-    private static final Map<ManaType, MasteryQueryResponse.Entry> buckets = new EnumMap<>(
-        ManaType.class);
-
     private ElementalMastery() {
     }
 
@@ -111,7 +96,6 @@ final class ElementalMastery {
                     .withEffect(MasteryAxis.DURATION));
             }
         }
-        NeoForge.EVENT_BUS.addListener(ElementalMastery::onAnswered);
     }
 
     /**
@@ -296,78 +280,46 @@ final class ElementalMastery {
     }
 
     /**
-     * Client: keeps the six element entries of core's answered mastery snapshot (D82, D85) - the
-     * meters and the client unlock verdicts read this store, and before the first answer nothing is
-     * stored, so both consumers abstain rather than guess.
-     *
-     * @param event
-     *            the answered response, posted on the client
-     */
-    static void onAnswered(MasteryQueryAnsweredEvent event) {
-        buckets.clear();
-        for (MasteryQueryResponse.Entry entry : event.response().entries()) {
-            if (!"ABILITY".equals(entry.kind())) {
-                continue;
-            }
-            for (ManaType element : ManaType.FLAVORS) {
-                if (id(element).toString().equals(entry.id())) {
-                    buckets.put(element, entry);
-                }
-            }
-        }
-        answered = true;
-    }
-
-    /**
-     * The client's level for one element bucket, or empty before the snapshot answers (D82's
-     * never-a-guessed-zero rule; an answered snapshot without the bucket honestly reads level 0 -
-     * the element has simply never earned).
-     *
-     * @param element
-     *            the element being asked about
-     * @return the stored level, or empty when nothing has answered yet
-     */
-    static Optional<Integer> clientLevel(ManaType element) {
-        if (!answered) {
-            return Optional.empty();
-        }
-        MasteryQueryResponse.Entry entry = buckets.get(element);
-        return Optional.of(entry == null ? 0 : entry.level());
-    }
-
-    /**
-     * The menu presentation for one entry (D82 through D81's seam): the element's level text and
-     * in-level fill once the snapshot has answered, an empty presentation before it - never a
-     * guessed zero. Toggle stays null because nothing here is castable.
+     * The menu presentation for one entry (D82 through D81's seam): hotbar's stored copy of the
+     * server's answer decides - the element's level text and in-level fill once it has answered, an
+     * empty presentation before it - never a guessed zero. It is the same {@link CoreMasteryCompat}
+     * read the spells' presentations use (fenced to the local player's exchange), so this class
+     * keeps no client copy of its own. Toggle stays null because nothing here is castable.
      *
      * @param player
-     *            the player whose menu is rendering (unused: the store already names them)
+     *            the player whose menu is rendering (unused: the snapshot already names them)
      * @param abilityId
      *            the mastery entry being presented
      * @return the presentation; never null
      */
     static AbilityPresentation present(Player player, ResourceLocation abilityId) {
+        if (!CoreMasteryCompat.answered() || !CoreMasteryCompat.declared(abilityId)) {
+            return new AbilityPresentation(null, List.of());
+        }
+        return presentation(true, CoreMasteryCompat.levelOf(abilityId),
+            CoreMasteryCompat.progressOf(abilityId));
+    }
+
+    /**
+     * The pure half of {@link #present}: the answered snapshot's numbers in, one presentation out,
+     * with no client state touched - the seam the GameTests drive with fabricated numbers (D82),
+     * exactly as SpellMastery's meter seam does. Unanswered presents nothing; answered presents the
+     * meter with the localised level text inside and the in-level fill on the bar.
+     *
+     * @param answered
+     *            whether hotbar's snapshot has answered for this entry
+     * @param level
+     *            the snapshot's own-target level (read only when answered)
+     * @param progress
+     *            the snapshot's in-level fill in {@code [0, 1]} (read only when answered)
+     * @return the presentation; never null
+     */
+    static AbilityPresentation presentation(boolean answered, int level, double progress) {
         if (!answered) {
             return new AbilityPresentation(null, List.of());
         }
-        ManaType element = elementOf(abilityId);
-        if (element == null) {
-            return new AbilityPresentation(null, List.of());
-        }
-        MasteryQueryResponse.Entry entry = buckets.get(element);
-        int level = entry == null ? 0 : entry.level();
-        double fill = entry == null ? 0.0 : entry.progress();
-        PresentationField meter = PresentationField.progress(METER_LABEL, (float) fill,
+        PresentationField meter = PresentationField.progress(METER_LABEL, (float) progress,
             Component.translatable(LEVEL_VALUE, level).getString());
         return new AbilityPresentation(null, List.of(meter));
-    }
-
-    private static ManaType elementOf(ResourceLocation abilityId) {
-        for (ManaType element : ManaType.FLAVORS) {
-            if (id(element).equals(abilityId)) {
-                return element;
-            }
-        }
-        return null;
     }
 }

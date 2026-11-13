@@ -1177,10 +1177,12 @@ containing spell's aggregate - 0.2 for a duo spell, 0.4/3 for Growth -
 feeding the POWER/DURATION curve. Each entry presents one `PROGRESS`
 field through D81's `PresentationProvider` seam: the element's level
 text inside the meter and its in-level fill, sourced from the entry's
-own row of the answered mastery snapshot (D85). Technomagy keeps that
-answer through core's `MasteryQueryAnsweredEvent`, and before it
-arrives the D81 rule holds - an empty presentation, never a guessed
-zero. Toggle stays null (nothing here is togglable or castable).
+own row of the answered mastery snapshot (D85) - read through hotbar's
+stored copy of that answer (`CoreMasteryCompat`), exactly as the
+spells' presentations read it, so Technomagy keeps no client copy of
+its own. Before it arrives the D81 rule holds - an empty
+presentation, never a guessed zero. Toggle stays null (nothing here is
+togglable or castable).
 
 **What does not change.** No new XP sources, no new multipliers, no
 capability changes to the sixteen spells, and no pane description line
@@ -1219,7 +1221,7 @@ ids: the six entries answer `true`; the spells answer whether every
 component element's bucket level - the same buckets D80 routes into
 and D82 displays - has reached the threshold. The server reads the
 buckets from the player's attachments through `MasteryLevels`; the
-client reads the answered mastery snapshot D82 keeps. Before that
+client reads hotbar's stored copy of the answered snapshot (D82). Before that
 answer the client abstains to unknown, and hotbar's `UnlockRule`
 (ability-hotbar#135) hides and refuses only a proven `false`, so an
 unknown state never locks anyone out.
