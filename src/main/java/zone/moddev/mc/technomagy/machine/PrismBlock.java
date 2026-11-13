@@ -120,7 +120,7 @@ public class PrismBlock extends Block {
     /** Mirrors the facing with the structure being mirrored. */
     @Override
     protected BlockState mirror(BlockState state, Mirror mirror) {
-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
+        return rotate(state, mirror.getRotation(state.getValue(FACING)));
     }
 
     /** Declares {@link #FACING} and {@link #MODE}. */

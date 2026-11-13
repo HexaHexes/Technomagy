@@ -45,7 +45,7 @@ public final class ElementSelectionKeys {
     }
 
     /** Registers the binding on the client mod bus without loading client classes on servers. */
-    @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+    @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT)
     public static final class Registration {
         private Registration() {
         }

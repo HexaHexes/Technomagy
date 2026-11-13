@@ -73,7 +73,7 @@ import zone.moddev.mc.technomagy.mana.ManaType;
  */
 @GameTestHolder("technomagy")
 @PrefixGameTestTemplate(false)
-@EventBusSubscriber(modid = "technomagy", bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = "technomagy")
 public final class SpellGameTests {
     private static Block receiver;
     private static final AtomicInteger RECEIVED = new AtomicInteger();
@@ -537,7 +537,8 @@ public final class SpellGameTests {
         h.assertTrue(!fire.active() && fire.capacity() == 0 && fire.balance() == 3,
             "HUD must preserve over-capacity balances for disabled pools");
         var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
-            io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());
+            io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess(),
+            net.neoforged.neoforge.network.connection.ConnectionType.NEOFORGE);
         try {
             ManaPoolSnapshot.CODEC.encode(buffer, snapshot);
             h.assertTrue(ManaPoolSnapshot.CODEC.decode(buffer).equals(snapshot),

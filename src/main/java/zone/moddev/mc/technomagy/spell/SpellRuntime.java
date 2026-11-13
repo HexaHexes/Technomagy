@@ -294,7 +294,7 @@ final class SpellRuntime {
     /** Refuses protected, unbreakable, unloaded, or inventory-bearing blocks before breaking. */
     private boolean breakable(ServerPlayer player, BlockPos pos) {
         ServerLevel level = player.serverLevel();
-        if (!level.hasChunkAt(pos)
+        if (!level.isLoaded(pos)
             || !level.mayInteract(player, pos)
             || !player.mayBuild()
             || level.isOutsideBuildHeight(pos)) {
@@ -549,7 +549,7 @@ final class SpellRuntime {
                 || candidate.getY() == maximum.getY();
             if (boundary
                 && !new AABB(candidate).intersects(body)
-                && level.hasChunkAt(candidate)
+                && level.isLoaded(candidate)
                 && level.isEmptyBlock(candidate)
                 && level.getEntities(null, new AABB(candidate)).isEmpty()) {
                 if (!placementAllowed(player, candidate, shell)) {
@@ -622,7 +622,7 @@ final class SpellRuntime {
             .setValue(
                 net.minecraft.world.level.block.state.properties.BlockStateProperties.LEVEL,
                 SpellConfig.LIGHT_LEVEL.get());
-        if (!level.hasChunkAt(pos)
+        if (!level.isLoaded(pos)
             || !level.isEmptyBlock(pos)
             || !placementAllowed(player, pos, light)) {
             return Optional.empty();
@@ -732,7 +732,7 @@ final class SpellRuntime {
      */
     private boolean growable(ServerPlayer player, BlockPos position) {
         ServerLevel level = player.serverLevel();
-        if (!level.hasChunkAt(position) || !level.mayInteract(player, position)) {
+        if (!level.isLoaded(position) || !level.mayInteract(player, position)) {
             return false;
         }
         BlockState state = level.getBlockState(position);
@@ -767,7 +767,7 @@ final class SpellRuntime {
      */
     private Optional<Effect> prepareEnergy(
         ServerPlayer player, ServerLevel level, BlockPos pos, Direction face) {
-        if (!level.hasChunkAt(pos)) {
+        if (!level.isLoaded(pos)) {
             return Optional.empty();
         }
         int energy = SpellMastery
@@ -785,7 +785,7 @@ final class SpellRuntime {
      */
     private boolean placementAllowed(ServerPlayer player, BlockPos pos, BlockState proposed) {
         ServerLevel level = player.serverLevel();
-        if (!level.hasChunkAt(pos)
+        if (!level.isLoaded(pos)
             || level.isOutsideBuildHeight(pos)
             || !level.mayInteract(player, pos)
             || !player.mayBuild()) {

@@ -181,7 +181,7 @@ public class CrystalClusterBlock extends AmethystBlock implements SimpleWaterlog
     /** Mirrors the facing with the structure being mirrored. */
     @Override
     protected BlockState mirror(BlockState state, Mirror mirror) {
-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
+        return rotate(state, mirror.getRotation(state.getValue(FACING)));
     }
 
     /** Water source when waterlogged, otherwise none. */

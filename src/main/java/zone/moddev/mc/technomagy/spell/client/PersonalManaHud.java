@@ -296,7 +296,7 @@ public final class PersonalManaHud {
     }
 
     /** Client mod-bus registration keeps the receiver and display cache off dedicated servers. */
-    @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+    @EventBusSubscriber(modid = "technomagy", value = Dist.CLIENT)
     public static final class Registration {
         private Registration() {
         }
