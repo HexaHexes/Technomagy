@@ -14,7 +14,8 @@ sourceSets {
 }
 
 def configureIconCheck = { JavaExec task, boolean bless ->
-    task.dependsOn tasks.named('iconCheckClasses')
+    // The classpath input carries the compiled classes: resolving it runs the compiles, and
+    // Gradle treats it as the task's @Classpath input, so no dependsOn is needed.
     task.classpath = sourceSets.iconCheck.runtimeClasspath
     task.mainClass = 'zone.moddev.mc.technomagy.spell.SpellIconChecks'
     task.systemProperty 'technomagy.resources', file('src/main/resources').absolutePath
@@ -26,8 +27,9 @@ def configureIconCheck = { JavaExec task, boolean bless ->
     }
 }
 
-// Verification, part of check. Declared inputs and a marker output let Gradle skip the JVM
-// entirely while the glyphs, the baked PNGs and the check/production classes are unchanged.
+// Verification, part of check. JavaExec.classpath already declares the compiled classes as its
+// @Classpath input (and building it runs the compiles), so the only extra inputs are the texture
+// sources; the marker output lets Gradle skip the JVM entirely while they are unchanged.
 // The marker provider is captured (not the script's `layout`) so the action survives the
 // configuration cache.
 def markerFile = layout.buildDirectory.file('icon-checks/verified.marker')
@@ -35,8 +37,6 @@ def spellIconChecks = tasks.register('runSpellIconChecks', JavaExec) {
     group = 'verification'
     description = 'Composes every spell icon and verifies the committed baked PNGs match.'
     configureIconCheck(it, false)
-    inputs.files(sourceSets.iconCheck.output, sourceSets.main.output)
-        .withPropertyName('iconCheckClasses')
     inputs.dir('src/main/resources/assets/technomagy/textures/item')
         .withPropertyName('glyphAndBakedTextures')
     outputs.file(markerFile).withPropertyName('verificationMarker')

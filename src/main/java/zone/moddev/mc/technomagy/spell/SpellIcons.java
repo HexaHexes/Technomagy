@@ -17,9 +17,10 @@ import zone.moddev.mc.technomagy.spell.client.SpellIconGenerator;
 /**
  * Declares the sixteen spells' icon providers (D82): the render-time generator answers each duo,
  * trio or quadra icon composed from its element symbols, so resource packs flow into the icon. This
- * side owns the classification - which spell, which glyphs, which layout count - while a dedicated
- * server abstains before touching any client class, and an unanswerable spell falls through to the
- * definition's static icon - core's documented resolution order.
+ * side owns the classification - which spell, which glyphs - while a dedicated server abstains
+ * before touching any client class, and an unanswerable spell falls through to the definition's
+ * static icon - core's documented resolution order. The glyph-count classification lives with the
+ * layout table in the generator.
  */
 final class SpellIcons {
 
@@ -41,11 +42,9 @@ final class SpellIcons {
         if (spell.isEmpty()) {
             return null;
         }
-        List<ResourceLocation> glyphs = glyphsFor(spell.get());
-        if (!SpellIconGenerator.hasLayout(glyphs.size())) {
-            return null; // a single-element spell wears its entry's own icon
-        }
-        return SpellIconGenerator.compose(abilityId, glyphs);
+        // compose abstains for a count with no layout (a single-element spell wears its entry's
+        // own icon), so the count guard lives with the layout table rather than here
+        return SpellIconGenerator.compose(abilityId, glyphsFor(spell.get()));
     }
 
     /**

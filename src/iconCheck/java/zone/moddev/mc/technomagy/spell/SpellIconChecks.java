@@ -9,6 +9,7 @@ import java.nio.file.Path;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
 
@@ -30,7 +31,8 @@ import zone.moddev.mc.technomagy.spell.client.SpellIconGenerator;
  * committed PNGs from this same code instead of comparing them - deliberately outside
  * {@code check}, so no build can rewrite resources by accident. Output files are named after the
  * ability id, lowercase - an uppercase name survives NTFS's case-insensitive overwrite, hides from
- * git, and breaks the jar's case-sensitive resource lookup as a missing texture in game.
+ * git, and breaks the jar's case-sensitive resource lookup as a missing texture in game, so every
+ * file this check touches is required to exist under its exact name.
  * </p>
  *
  * <p>
@@ -59,12 +61,18 @@ public final class SpellIconChecks {
      * @throws IOException
      *             if a committed PNG cannot be read or written
      * @throws IllegalStateException
-     *             if a glyph source is missing or undecodable, a spell with a layout composes to
-     *             nothing because a glyph is not square, no spell was checked at all, or a
+     *             if the resources property is missing, a glyph source is missing, undecodable, not
+     *             square or present only under a different case, a spell with a layout composes to
+     *             nothing, no spell was checked at all, no PNG writer accepts a blessed file, or a
      *             committed icon differs from its composition
      */
     public static void main(String[] args) throws IOException {
-        Path resources = Path.of(System.getProperty(RESOURCES_PROPERTY, "src/main/resources"));
+        String resourcesPath = System.getProperty(RESOURCES_PROPERTY);
+        if (resourcesPath == null) {
+            throw new IllegalStateException("missing -D" + RESOURCES_PROPERTY + "; run this "
+                + "through ./gradlew runSpellIconChecks or ./gradlew blessSpellIcons");
+        }
+        Path resources = Path.of(resourcesPath);
         boolean bless = Boolean.getBoolean(BLESS_PROPERTY);
         int verified = 0;
         for (PlayerSpell spell : PlayerSpell.values()) {
@@ -76,16 +84,26 @@ public final class SpellIconChecks {
             for (ResourceLocation glyph : glyphs) {
                 decoded.add(load(resources, glyph));
             }
-            BufferedImage composed = SpellIconGenerator.composeCanvas(decoded);
+            BufferedImage composed;
+            try {
+                composed = SpellIconGenerator.composeCanvas(decoded);
+            } catch (SpellIconGenerator.GlyphRefusalException refusal) {
+                throw new IllegalStateException(spell + ": glyph "
+                    + glyphs.get(refusal.glyphIndex()) + " is " + refusal.width() + "x"
+                    + refusal.height() + " rather than square; baked icons need square glyph "
+                    + "sources", refusal);
+            }
             if (composed == null) {
-                // hasLayout passed above, so composeCanvas refused a non-square glyph and warned
-                // with its index; naming every candidate identifies it without re-testing.
-                throw new IllegalStateException(spell + ": a glyph source is not square "
-                    + "(see the warn above); glyphs " + glyphs);
+                throw new IllegalStateException(spell + ": composeCanvas answered nothing although "
+                    + "hasLayout passed - a bug in the generator");
             }
             Path baked = bakedIcon(resources, spell);
             if (bless) {
-                ImageIO.write(composed, "PNG", baked.toFile());
+                exactEntry(baked); // absent answers null (the write creates it); a case-only
+                // clone of the name throws here instead of silently keeping the wrong case
+                if (!ImageIO.write(composed, "PNG", baked.toFile())) {
+                    throw new IllegalStateException("no PNG writer accepts " + baked);
+                }
                 System.out.println("regenerated " + baked.getFileName());
             } else {
                 compare(spell, composed, baked);
@@ -101,8 +119,9 @@ public final class SpellIconChecks {
 
     /**
      * Loads one committed glyph strictly: a missing or undecodable source must fail the build here,
-     * where the game would only warn and fall back. Squareness is not checked here - the shared
-     * {@link SpellIconGenerator#composeCanvas} enforces it for every caller.
+     * where the game would only warn and fall back, and a case-only clone of the name is refused
+     * (the jar's lookup is case-sensitive where this filesystem is not). Squareness is not checked
+     * here - the shared {@link SpellIconGenerator#composeCanvas} enforces it for every caller.
      *
      * @param resources
      *            the mod's {@code src/main/resources} root
@@ -112,10 +131,11 @@ public final class SpellIconChecks {
      * @throws IOException
      *             if the file is missing or unreadable
      * @throws IllegalStateException
-     *             if the file is not a decodable image
+     *             if the file is not a decodable image, or exists only under a different case
      */
     private static BufferedImage load(Path resources, ResourceLocation id) throws IOException {
         Path file = resources.resolve("assets/" + id.getNamespace()).resolve(id.getPath());
+        exactEntry(file);
         BufferedImage image = ImageIO.read(file.toFile());
         if (image == null) {
             throw new IllegalStateException("glyph " + id + " is not a decodable image: " + file);
@@ -138,6 +158,42 @@ public final class SpellIconChecks {
     }
 
     /**
+     * Finds a directory entry with exactly the requested file name, refusing a case-only clone.
+     * NTFS and macOS resolve names case-insensitively, so {@code Forge.png} would satisfy a local
+     * exists/read (and a bless write would keep that name) while the jar's case-sensitive lookup
+     * for {@code forge.png} fails in game - the very failure this check exists to prevent.
+     *
+     * @param file
+     *            the exact path required
+     * @return the exactly-named entry, or null when the directory holds no such name and no
+     *         case-variant of it
+     * @throws IOException
+     *             if the directory cannot be listed
+     * @throws IllegalStateException
+     *             when only a differently-cased name exists
+     */
+    private static Path exactEntry(Path file) throws IOException {
+        String wanted = file.getFileName().toString();
+        String clash = null;
+        try (Stream<Path> entries = Files.list(file.getParent())) {
+            for (Path entry : (Iterable<Path>) entries::iterator) {
+                String name = entry.getFileName().toString();
+                if (name.equals(wanted)) {
+                    return entry;
+                }
+                if (name.equalsIgnoreCase(wanted)) {
+                    clash = name;
+                }
+            }
+        }
+        if (clash != null) {
+            throw new IllegalStateException("file " + wanted + " is committed only as " + clash
+                + "; the jar's case-sensitive lookup needs the exact name - rename it");
+        }
+        return null;
+    }
+
+    /**
      * Asserts the committed PNG equals the composition, pixel for pixel.
      *
      * @param spell
@@ -149,12 +205,12 @@ public final class SpellIconChecks {
      * @throws IOException
      *             if the committed file cannot be read
      * @throws IllegalStateException
-     *             if the committed file is missing, not a {@link SpellIconGenerator#CANVAS_SIZE}
-     *             square image, or differs
+     *             if the committed file is missing, exists only under a different case, is not a
+     *             {@link SpellIconGenerator#CANVAS_SIZE} square image, or differs
      */
     private static void compare(PlayerSpell spell, BufferedImage composed, Path baked)
         throws IOException {
-        if (!Files.exists(baked)) {
+        if (exactEntry(baked) == null) {
             throw new IllegalStateException("baked icon " + baked + " is missing; run "
                 + "./gradlew blessSpellIcons to generate it");
         }

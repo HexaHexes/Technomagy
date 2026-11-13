@@ -1,6 +1,9 @@
 package zone.moddev.mc.technomagy.spell.client;
 
+import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.Raster;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,6 +84,34 @@ public final class SpellIconGenerator {
      */
     private static final Map<ResourceLocation, Optional<ResourceLocation>> icons = new HashMap<>();
 
+    // The invariant writeGlyphPixel relies on: the glyph boxes share no pixel (the canvas starts
+    // transparent, so each pixel is written exactly once and no blend is needed - which is also
+    // what keeps the packed channels clear of the overflow separately-floored blend terms could
+    // reach). Checked at class initialization so a future slot edit fails fast here instead of
+    // quietly overwriting, and a slot outside the canvas fails before the copy loops corrupt it.
+    static {
+        for (int[][] slots : LAYOUTS.values()) {
+            for (int i = 0; i < slots.length; i++) {
+                if (slots[i][0] < 0 || slots[i][1] < 0
+                    || slots[i][0] + GLYPH_SIZE > CANVAS_SIZE
+                    || slots[i][1] + GLYPH_SIZE > CANVAS_SIZE) {
+                    throw new ExceptionInInitializerError("layout slot " + i + " leaves the "
+                        + CANVAS_SIZE + "px canvas");
+                }
+                for (int j = i + 1; j < slots.length; j++) {
+                    boolean disjoint = slots[i][0] + GLYPH_SIZE <= slots[j][0]
+                        || slots[j][0] + GLYPH_SIZE <= slots[i][0]
+                        || slots[i][1] + GLYPH_SIZE <= slots[j][1]
+                        || slots[j][1] + GLYPH_SIZE <= slots[i][1];
+                    if (!disjoint) {
+                        throw new ExceptionInInitializerError(
+                            "layout slots " + i + " and " + j + " overlap");
+                    }
+                }
+            }
+        }
+    }
+
     private SpellIconGenerator() {
     }
 
@@ -140,9 +171,9 @@ public final class SpellIconGenerator {
 
     /**
      * Whether a glyph count has a layout slot set (D82): the one executable statement of the
-     * system's glyph-count range, read by the provider, the generator itself and the baked-icon
-     * check so they cannot drift - a future one-glyph layout for single-element casts would be
-     * added to {@code LAYOUTS} and nowhere else.
+     * system's glyph-count range. {@link #composeCanvas} is the single guard over it, and the
+     * baked-icon check reads it to classify spells, so they cannot drift - a future one-glyph
+     * layout for single-element casts would be added to {@code LAYOUTS} and nowhere else.
      *
      * @param glyphCount
      *            how many glyphs the caller proposes to compose
@@ -163,13 +194,10 @@ public final class SpellIconGenerator {
      * @param glyphs
      *            the element glyph textures in the spell's stream order
      * @return the registered dynamic texture's id, or null when the count has no layout or a glyph
-     *         is unreadable or not square
+     *         is unreadable or not square (the refusal is reported with the texture's id)
      */
     private static ResourceLocation composeAndRegister(Minecraft minecraft,
         ResourceLocation abilityId, List<ResourceLocation> glyphs) {
-        if (!hasLayout(glyphs.size())) {
-            return null; // a single-element spell wears its entry's icon; deeper counts abstain
-        }
         List<BufferedImage> decoded = new ArrayList<>(glyphs.size());
         for (ResourceLocation glyph : glyphs) {
             BufferedImage image = read(minecraft, glyph);
@@ -178,12 +206,17 @@ public final class SpellIconGenerator {
             }
             decoded.add(image);
         }
-        BufferedImage composed = composeCanvas(decoded);
-        if (composed == null) {
-            // composeCanvas has already reported the reason (a non-square glyph); name the caller
-            LOGGER.warn("The icon for {} could not be composed; it falls back to its static file",
-                abilityId);
+        BufferedImage composed;
+        try {
+            composed = composeCanvas(decoded);
+        } catch (GlyphRefusalException refusal) {
+            LOGGER.warn("Glyph texture {} is {}x{} rather than square - an animated strip cannot "
+                + "be composed, so {} falls back to its static icon",
+                glyphs.get(refusal.glyphIndex()), refusal.width(), refusal.height(), abilityId);
             return null;
+        }
+        if (composed == null) {
+            return null; // no layout for this count: the documented single-element abstention
         }
         NativeImage pixels = new NativeImage(CANVAS_SIZE, CANVAS_SIZE, true);
         for (int y = 0; y < CANVAS_SIZE; y++) {
@@ -202,14 +235,16 @@ public final class SpellIconGenerator {
      * 15x15 box and written at its count's layout slot, in list order (the spell's stream order).
      * Pure integer math with no client state - it touches neither the resource stack nor the
      * texture manager - so the baked-icon check runs the very code the game runs. Glyphs of any
-     * square size compose (small ones are nearest-sampled up, large ones box-averaged down); a
-     * non-square source - an animated strip - is refused here, the one place both callers share,
-     * and reported, so no caller can let a strip into the box scale.
+     * square size compose (small ones are nearest-sampled up, large ones box-averaged down) and
+     * grayscale sources are normalized to sRGB bytes first, so the result matches Minecraft's own
+     * decoder. This is the single layout guard: a non-square source - an animated strip - is
+     * refused here, the one place both callers share, with a refusal that names it by index.
      *
      * @param glyphs
      *            the decoded element glyphs in the spell's stream order
-     * @return the composed canvas, or null when the glyph count has no layout or any glyph is not
-     *         square
+     * @return the composed canvas, or null when the glyph count has no layout
+     * @throws GlyphRefusalException
+     *             when any glyph is not square
      */
     public static BufferedImage composeCanvas(List<BufferedImage> glyphs) {
         if (!hasLayout(glyphs.size())) {
@@ -218,23 +253,97 @@ public final class SpellIconGenerator {
         for (int i = 0; i < glyphs.size(); i++) {
             BufferedImage glyph = glyphs.get(i);
             if (glyph.getWidth() != glyph.getHeight()) {
-                LOGGER.warn("Glyph #{} is {}x{} rather than square - an animated strip cannot be "
-                    + "composed", i, glyph.getWidth(), glyph.getHeight());
-                return null;
+                throw new GlyphRefusalException(i, glyph.getWidth(), glyph.getHeight());
             }
         }
         int[][] slots = LAYOUTS.get(glyphs.size());
         BufferedImage composed = new BufferedImage(CANVAS_SIZE, CANVAS_SIZE,
             BufferedImage.TYPE_INT_ARGB);
         for (int i = 0; i < glyphs.size(); i++) {
-            BufferedImage small = boxScale(glyphs.get(i), GLYPH_SIZE, GLYPH_SIZE);
+            BufferedImage small = boxScale(normalizeGlyph(glyphs.get(i)), GLYPH_SIZE, GLYPH_SIZE);
             for (int dy = 0; dy < GLYPH_SIZE; dy++) {
                 for (int dx = 0; dx < GLYPH_SIZE; dx++) {
-                    composite(composed, slots[i][0] + dx, slots[i][1] + dy, small.getRGB(dx, dy));
+                    writeGlyphPixel(composed, slots[i][0] + dx, slots[i][1] + dy,
+                        small.getRGB(dx, dy));
                 }
             }
         }
         return composed;
+    }
+
+    /**
+     * Raised by {@link #composeCanvas} when a glyph source cannot compose: a non-square image - an
+     * animated strip - that the box scale must never see. The payload carries the glyph's index and
+     * size; the callers own the texture ids and name the actual file in their own diagnostics, so
+     * the failure identifies the texture whether or not a logger is configured (the icon-check JVM
+     * has no log4j configuration).
+     */
+    public static final class GlyphRefusalException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private final int glyphIndex;
+        private final int width;
+        private final int height;
+
+        GlyphRefusalException(int glyphIndex, int width, int height) {
+            super("glyph #" + glyphIndex + " is " + width + "x" + height + " rather than square");
+            this.glyphIndex = glyphIndex;
+            this.width = width;
+            this.height = height;
+        }
+
+        /**
+         * @return the refused glyph's index in the list handed to {@link #composeCanvas}
+         */
+        public int glyphIndex() {
+            return glyphIndex;
+        }
+
+        /**
+         * @return the refused glyph's width in pixels
+         */
+        public int width() {
+            return width;
+        }
+
+        /**
+         * @return the refused glyph's height in pixels
+         */
+        public int height() {
+            return height;
+        }
+    }
+
+    /**
+     * Copies a glyph out of a grayscale color model into sRGB bytes. ImageIO decodes gray PNGs into
+     * a linear-gray space and {@code getRGB} brightens them on the way to sRGB (a stored 128 reads
+     * as about 187), while Minecraft's decoder keeps the raw sample - so without this a pack's
+     * grayscale symbol, which optimizers often produce for monochrome art, would compose lighter
+     * than the same art served as a static texture. RGB and palette sources already store sRGB
+     * bytes and pass through untouched.
+     *
+     * @param glyph
+     *            the decoded, square glyph
+     * @return the glyph as sRGB bytes: the same instance when it already is, a copy otherwise
+     */
+    private static BufferedImage normalizeGlyph(BufferedImage glyph) {
+        ColorModel model = glyph.getColorModel();
+        if (model.getColorSpace().getType() != ColorSpace.TYPE_GRAY) {
+            return glyph;
+        }
+        Raster raster = glyph.getRaster();
+        int max = (1 << raster.getSampleModel().getSampleSize(0)) - 1;
+        boolean alpha = model.hasAlpha();
+        BufferedImage out = new BufferedImage(glyph.getWidth(), glyph.getHeight(),
+            BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < glyph.getHeight(); y++) {
+            for (int x = 0; x < glyph.getWidth(); x++) {
+                int value = raster.getSample(x, y, 0) * 255 / max;
+                int transparency = alpha ? raster.getSample(x, y, 1) * 255 / max : 255;
+                out.setRGB(x, y, (transparency << 24) | (value << 16) | (value << 8) | value);
+            }
+        }
+        return out;
     }
 
     /**
@@ -292,12 +401,13 @@ public final class SpellIconGenerator {
     }
 
     /**
-     * Writes one downscaled glyph pixel at (x, y) unless it is fully transparent. The canvas starts
-     * transparent and every layout slot is disjoint (the three layouts pack the 15x15 boxes edge to
-     * edge without shared pixels), so each canvas pixel is written at most once: source-over onto
-     * transparency reduces to a plain write, which also keeps the packed channels clear of the
-     * overflow that separately-floored blend terms could reach. A future overlapping layout would
-     * overwrite rather than blend.
+     * Writes one downscaled glyph pixel at (x, y) unless it is fully transparent. This is a write,
+     * not a blend, and the class initializer proves why that is sound: the layout slots share no
+     * pixel, so each canvas pixel is written at most once and the source pixel is the result -
+     * which also keeps the packed channels clear of the overflow that separately-floored blend
+     * terms could reach. DESIGN.md's "drawn source-over" describes exactly this observable outcome
+     * for disjoint boxes; an overlapping layout fails at class initialization instead of silently
+     * overwriting.
      *
      * @param target
      *            the 32x32 composition being built
@@ -308,7 +418,7 @@ public final class SpellIconGenerator {
      * @param argb
      *            the glyph pixel to draw
      */
-    private static void composite(BufferedImage target, int x, int y, int argb) {
+    private static void writeGlyphPixel(BufferedImage target, int x, int y, int argb) {
         if ((argb >>> 24) == 0) {
             return;
         }
