@@ -38,7 +38,7 @@ Any sufficiently advanced technology is indistinguishable from magic - Arthur C.
 [[dependencies.technomagy]]
    modId="ability_core"
    type="required"
-   versionRange="[1.1.0-alpha.06]"
+   versionRange="[1.1.0-alpha.07,)"
    ordering="AFTER"
    side="BOTH"
 
@@ -52,6 +52,6 @@ Any sufficiently advanced technology is indistinguishable from magic - Arthur C.
 [[dependencies.technomagy]]
    modId="ability_hotbar"
    type="required"
-   versionRange="[1.0.1-alpha.06]"
+   versionRange="[1.0.1-alpha.06,)"
    ordering="AFTER"
    side="BOTH"
