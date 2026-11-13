@@ -1253,13 +1253,16 @@ lists nothing unlearned, Mend alone once Water and Light reach level
 is client render: honest scope is build green plus the user's in-game
 check, stated as such.
 
-**D84.** Descriptions for the sixteen spells, the six elements, and
-the six mastery entries - flavour text carried as Ability Core's
+**D84.** Descriptions for the sixteen spells and the six mastery
+entries - flavour text carried as Ability Core's
 `description` data key, the
 convention the mastery entries already use: the value is the
 translation key `<display name key>.description`, which hotbar's menu
 pane wraps and scrolls. `SpellContent.definition` declares the key for
-every spell; the texts live in `en_us.json`.
+every spell; the texts live in `en_us.json`. Each mastery entry's
+description opens with its element's palette paragraph (the six texts
+below), so the element lore surfaces where players read it - on the
+entry's own pane row - rather than as standalone keys nothing carries.
 
 Style, recorded so later edits hold the line:
 
@@ -1283,8 +1286,10 @@ Style, recorded so later edits hold the line:
   keep their classical reading and modern physics supplies the
   mechanism.
 
-**The six element descriptions** - the palette, mirrored verbatim in
-`en_us.json` under `element.technomagy.<flavor>.description`:
+**The six element descriptions** - the palette, opening each element's
+`mastery.technomagy.<flavor>.description` in `en_us.json` verbatim
+(no standalone `element.technomagy.*` keys exist; nothing would read
+them):
 
 - **Fire (Ignis)** - Ignis, the hot and dry - thermodynamics' own
   arrow, matter loosened until it glows: every body radiates as its
@@ -1321,16 +1326,16 @@ Style, recorded so later edits hold the line:
   transformation.
 
 **The six mastery entries** follow the same rules under
-`mastery.technomagy.<flavor>.description`: each keeps its two facts -
-how the entry grows, and the exact spells its level strengthens (D82's
-lists, unchanged) - and now also names how a level affects them,
-which axes the pane's live Mastery bonuses section reads beside it
-(D85).
+`mastery.technomagy.<flavor>.description`: each opens with its
+element's palette paragraph above, then keeps its two facts - how the
+entry grows, and the exact spells its level strengthens (D82's lists,
+unchanged) - and now also names how a level affects them, which axes
+the pane's live Mastery bonuses section reads beside it (D85).
 
-**Verification.** All twenty-eight translation keys exist in
+**Verification.** All twenty-two translation keys exist in
 `en_us.json` (sixteen `spell.technomagy.<id>.description`, six
-`element.technomagy.<flavor>.description`, six rewritten
-`mastery.technomagy.<flavor>.description`), `definition()` declares
+`mastery.technomagy.<flavor>.description`, each the element's palette
+paragraph plus its growth and boost facts), `definition()` declares
 the data key beside the costs, and `build` and all 50 GameTests stay
 green. The pane itself is client render: honest scope is build green
 plus the user's in-game check, stated as such.

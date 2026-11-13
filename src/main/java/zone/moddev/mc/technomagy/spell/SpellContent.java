@@ -149,6 +149,7 @@ public final class SpellContent {
      * @return the registry entry for {@code spell}
      */
     private static AbilityDefinition definition(PlayerSpell spell) {
+        String nameKey = spell.id().getPath();
         List<ResourceCost> costs = new ArrayList<>(ManaType.FLAVORS.size());
         for (ManaType element : ManaType.FLAVORS) {
             costs.add(
@@ -157,9 +158,9 @@ public final class SpellContent {
                     spell.inputUnits().getOrDefault(element, 0)));
         }
         return new AbilityDefinition(
-            "spell.technomagy." + spell.id().getPath(),
+            "spell.technomagy." + nameKey,
             ResourceLocation.fromNamespaceAndPath(
-                "technomagy", "textures/item/" + spell.id().getPath() + ".png"),
+                "technomagy", "textures/item/" + nameKey + ".png"),
             ResourceLocation.fromNamespaceAndPath(
                 "technomagy", "spells"),
             ActivationType.INSTANT,
@@ -167,7 +168,7 @@ public final class SpellContent {
             "all",
             SpellResources.COST_RESOLVER,
             ElementalMastery.elementTags(spell),
-            Map.of("description", "spell.technomagy." + spell.id().getPath() + ".description"));
+            Map.of("description", "spell.technomagy." + nameKey + ".description"));
     }
 
     /**

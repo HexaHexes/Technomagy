@@ -1250,9 +1250,11 @@ public final class SpellGameTests {
     }
 
     /**
-     * D82 through D81's seam: an entry presents nothing before hotbar's snapshot has answered, then
-     * exactly one level meter built from the answered numbers carried through the pure seam - never
-     * a guessed zero (the same shape SpellMastery's meter seam takes).
+     * D82 through D81's seam: an entry presents nothing before hotbar's snapshot has answered
+     * (proven through {@code present} itself), then exactly one level meter built from answered
+     * numbers driven through the pure seam - with the looked-up id recorded and asserted to be the
+     * entry's own id untransformed, so a wrong id can never silently answer level 0 (the same shape
+     * SpellMastery's meter seam takes).
      */
     @GameTest(template = "empty")
     public static void masteryEntriesPresentFromTheElementSnapshot(GameTestHelper h) {
@@ -1261,7 +1263,13 @@ public final class SpellGameTests {
         var before = PresentationProviders.present(caster, fire);
         h.assertTrue(before.isPresent() && before.get().fields().isEmpty(),
             "Before the answer the entry must present nothing, got " + before);
-        var after = ElementalMastery.presentation(true, 4, 0.5);
+        AtomicReference<ResourceLocation> lookedUp = new AtomicReference<>();
+        var after = ElementalMastery.presentation(fire,
+            id -> {
+                lookedUp.set(id);
+                return 4;
+            },
+            id -> 0.5);
         h.assertTrue(after.fields().size() == 1,
             "An answered entry must present exactly one meter, got " + after);
         var meter = after.fields().get(0);
@@ -1271,8 +1279,8 @@ public final class SpellGameTests {
             "The meter must carry the snapshot's fill, got " + meter.progress());
         h.assertTrue(meter.value().endsWith("4"),
             "The meter must name level 4, got '" + meter.value() + "'");
-        h.assertTrue(ElementalMastery.presentation(false, 4, 0.5).fields().isEmpty(),
-            "An unanswered entry must present nothing");
+        h.assertTrue(fire.equals(lookedUp.get()),
+            "The seam must look up the entry's own id untransformed, got " + lookedUp.get());
         h.succeed();
     }
 

@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 import net.minecraft.network.chat.Component;
@@ -26,7 +28,7 @@ import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
 import zone.moddev.mc.technomagy.mana.ManaType;
 
 /**
- * The three menu tabs and the six elemental mastery entries (D82): organization only - tabs by
+ * The four count menu tabs and the six elemental mastery entries (D82): organization only - tabs by
  * element count, an element tag per component element on every ability, and one non-castable entry
  * per element presenting its bucket's level. No balance lives here; the boosts the entries describe
  * are D80's aggregate math.
@@ -66,10 +68,11 @@ final class ElementalMastery {
     }
 
     /**
-     * Declares the three tabs with their alchemical category icons, element-chip order, their
+     * Declares the four count tabs with their alchemical category icons, element-chip order, their
      * learned-only live content (D83), the six entry presentation providers, each entry's
-     * pane-display mastery spec (D85), and the snapshot listener. Runs once at mod construction
-     * beside the D79/D80 declarations (D82).
+     * pane-display mastery spec (D85), and no snapshot listener of its own - the client reads
+     * hotbar's shared snapshot store instead. Runs once at mod construction beside the D79/D80
+     * declarations (D82, D85).
      */
     static void declare() {
         MenuTabs.register(SINGLE_TAB, "tab.technomagy.single", tabIcon("single"),
@@ -89,12 +92,11 @@ final class ElementalMastery {
             PresentationProviders.declare(id(element), ElementalMastery::present);
             // D85's display contract: the entry never casts, so these curves never apply -
             // they exist so the pane's Mastery bonuses section reads POWER and DURATION at the
-            // element's own level (the ISS school-mastery pattern).
-            if (!MasteryDeclarations.has(id(element))) {
-                MasteryDeclarations.declare(id(element), MasterySpec.gained(0.0)
-                    .withEffect(MasteryAxis.POWER)
-                    .withEffect(MasteryAxis.DURATION));
-            }
+            // element's own level (the ISS school-mastery pattern). No has() guard: a second
+            // declaration must trip core's duplicate-owner error, never silently win.
+            MasteryDeclarations.declare(id(element), MasterySpec.gained(0.0)
+                .withEffect(MasteryAxis.POWER)
+                .withEffect(MasteryAxis.DURATION));
         }
     }
 
@@ -177,7 +179,8 @@ final class ElementalMastery {
 
     /**
      * The element-tag vocabulary name for one flavor: its lowercase mana name ({@code fire},
-     * {@code light}, ...), the same word the personal pool and the D80 bucket use.
+     * {@code light}, ...), the same word the personal pool, the element tag and the
+     * {@code <name>_mastery} entry id all derive from.
      *
      * @param element
      *            one of the six personal-pool flavors
@@ -293,32 +296,32 @@ final class ElementalMastery {
      * @return the presentation; never null
      */
     static AbilityPresentation present(Player player, ResourceLocation abilityId) {
-        if (!CoreMasteryCompat.answered() || !CoreMasteryCompat.declared(abilityId)) {
+        if (!CoreMasteryCompat.answered()) {
             return new AbilityPresentation(null, List.of());
         }
-        return presentation(true, CoreMasteryCompat.levelOf(abilityId),
-            CoreMasteryCompat.progressOf(abilityId));
+        return presentation(abilityId, CoreMasteryCompat::levelOf, CoreMasteryCompat::progressOf);
     }
 
     /**
-     * The pure half of {@link #present}: the answered snapshot's numbers in, one presentation out,
-     * with no client state touched - the seam the GameTests drive with fabricated numbers (D82),
-     * exactly as SpellMastery's meter seam does. Unanswered presents nothing; answered presents the
-     * meter with the localised level text inside and the in-level fill on the bar.
+     * The pure half of {@link #present}: the id travels untransformed to the injected store readers
+     * and their answers become the meter - no client state touched. The readers are parameters so
+     * the GameTests can pin the exact id this method looks up: a transformed id (the old
+     * pool-resource id, say) would silently answer level 0 and still build a meter.
      *
-     * @param answered
-     *            whether hotbar's snapshot has answered for this entry
-     * @param level
-     *            the snapshot's own-target level (read only when answered)
-     * @param progress
-     *            the snapshot's in-level fill in {@code [0, 1]} (read only when answered)
-     * @return the presentation; never null
+     * @param abilityId
+     *            the entry id to look up, passed through unchanged
+     * @param levelOf
+     *            the store's own-target level reader
+     * @param progressOf
+     *            the store's in-level fill reader
+     * @return the meter presentation; never null
      */
-    static AbilityPresentation presentation(boolean answered, int level, double progress) {
-        if (!answered) {
-            return new AbilityPresentation(null, List.of());
-        }
-        PresentationField meter = PresentationField.progress(METER_LABEL, (float) progress,
+    static AbilityPresentation presentation(ResourceLocation abilityId,
+        ToIntFunction<ResourceLocation> levelOf,
+        ToDoubleFunction<ResourceLocation> progressOf) {
+        int level = levelOf.applyAsInt(abilityId);
+        double fill = progressOf.applyAsDouble(abilityId);
+        PresentationField meter = PresentationField.progress(METER_LABEL, (float) fill,
             Component.translatable(LEVEL_VALUE, level).getString());
         return new AbilityPresentation(null, List.of(meter));
     }
