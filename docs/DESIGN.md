@@ -937,13 +937,13 @@ output and raw awards alike - routes through the spec's share list:
 **40%** flows to the spell's elements, **15%** to its discipline, and
 the self remainder (**45%**) stays on the spell's own target.
 
-- **Elements**: one `SUBCATEGORY` bucket per element of the spell's
-  `stream()`, id `technomagy:<flavor>` - the same six ids as the
-  personal pool resources (D70/D78). The 40% splits evenly across them:
-  a pair spell routes 20% each, Growth 13.3% each. Every spell that
-  uses an element feeds the same bucket, so casting broadly in one
-  element empowers every spell of that element through core's
-  `aggregateLevel`.
+- **Elements**: one `ABILITY` pool per element of the spell's
+  `stream()` - the element's own mastery entry,
+  `technomagy:<flavor>_mastery` (D85). The entry's stored XP **is** the
+  element's bucket: the same number routes in and aggregates back out,
+  so the 40% splits evenly across them - a pair spell routes 20% each,
+  Growth 13.3% each - and every spell that uses an element empowers
+  every spell of that element through core's `aggregateLevel`.
 - **Disciplines**: exactly one fixed role school per spell, a
   `SUBCATEGORY` bucket id `technomagy:<school>`:
 
@@ -1171,17 +1171,15 @@ missing texture) - and hotbar's draw chain (added by hotbar#218)
 consults the provider before it.
 
 **What the entries read.** The six are pure presentations of the
-existing element buckets (`SUBCATEGORY technomagy:<element>`): D80
-already routes 40 percent of every grant there, and `MasteryView` already
-folds `share x bucket level` into each containing spell's aggregate -
-0.2 for a duo spell, 0.4/3 for Growth - feeding the POWER/DURATION
-curve. Each entry presents one `PROGRESS` field through D81's
-`PresentationProvider` seam: the element's level text inside the meter
-and its in-level fill, sourced from the `SUBCATEGORY` entries of the
-answered mastery snapshot. Hotbar's public snapshot reads expose only
-`ABILITY` entries, so Technomagy listens to core's
-`MasteryQueryAnsweredEvent` itself and keeps the element entries; before
-the answer the D81 rule holds - an empty presentation, never a guessed
+element pools D80 routes into - the entry's own `ABILITY` XP, whose
+level `MasteryView` already folds as `share x level` into each
+containing spell's aggregate - 0.2 for a duo spell, 0.4/3 for Growth -
+feeding the POWER/DURATION curve. Each entry presents one `PROGRESS`
+field through D81's `PresentationProvider` seam: the element's level
+text inside the meter and its in-level fill, sourced from the entry's
+own row of the answered mastery snapshot (D85). Technomagy keeps that
+answer through core's `MasteryQueryAnsweredEvent`, and before it
+arrives the D81 rule holds - an empty presentation, never a guessed
 zero. Toggle stays null (nothing here is togglable or castable).
 
 **What does not change.** No new XP sources, no new multipliers, no
@@ -1253,8 +1251,9 @@ lists nothing unlearned, Mend alone once Water and Light reach level
 is client render: honest scope is build green plus the user's in-game
 check, stated as such.
 
-**D84.** Descriptions for the sixteen spells and the six elements -
-flavour text carried as Ability Core's `description` data key, the
+**D84.** Descriptions for the sixteen spells, the six elements, and
+the six mastery entries - flavour text carried as Ability Core's
+`description` data key, the
 convention the mastery entries already use: the value is the
 translation key `<display name key>.description`, which hotbar's menu
 pane wraps and scrolls. `SpellContent.definition` declares the key for
@@ -1319,12 +1318,50 @@ Style, recorded so later edits hold the line:
   called it the nigredo, the blackening that must precede all
   transformation.
 
-**Verification.** All twenty-two translation keys exist in
+**The six mastery entries** follow the same rules under
+`mastery.technomagy.<flavor>.description`: each keeps its two facts -
+how the entry grows, and the exact spells its level strengthens (D82's
+lists, unchanged) - and now also names how a level affects them,
+which axes the pane's live Mastery bonuses section reads beside it
+(D85).
+
+**Verification.** All twenty-eight translation keys exist in
 `en_us.json` (sixteen `spell.technomagy.<id>.description`, six
-`element.technomagy.<flavor>.description`), `definition()` declares
+`element.technomagy.<flavor>.description`, six rewritten
+`mastery.technomagy.<flavor>.description`), `definition()` declares
 the data key beside the costs, and `build` and all 50 GameTests stay
 green. The pane itself is client render: honest scope is build green
 plus the user's in-game check, stated as such.
+
+**D85.** Element-mastery bonus panes - parity with ISS's school
+masteries: the six Single entries answer hotbar's pane section
+"Mastery bonuses" in three linked pieces.
+
+- **Declaration (a display contract)**: each entry declares
+  `MasterySpec.gained(0.0)` with `POWER` and `DURATION` - exactly the
+  axes Technomagy's spells apply (D80) and none it does not. The entry
+  never casts, so these curves never apply to anything: they exist so
+  core's snapshot answers the pane with each axis's curve read at the
+  element's own level, live as that level grows (ISS's phrase: the
+  curves "are the pane's display contract"). Discipline and school
+  subcategories gain no such declaration.
+- **Storage**: a spell's element share now targets the entry's
+  `ABILITY` pool (`technomagy:<flavor>_mastery`) instead of the
+  `SUBCATEGORY technomagy:<flavor>` bucket. Core's share math is one
+  number both ways - the routing fraction is also the aggregate weight
+  - so the entry's own XP **is** the element's bucket: routing, D82's
+  meters, D83's unlock reads and the pane all read one number. The
+  discipline shares stay `SUBCATEGORY technomagy:<school>`, and the
+  D70 casting pools are a separate system that does not move.
+- **Existing worlds**: element XP stored under the old `SUBCATEGORY`
+  keys is not migrated - accepted for alpha; the orphaned keys simply
+  go unread and element mastery starts over.
+
+**Verification.** The GameTests re-pin the share keys
+(`ABILITY|technomagy:<flavor>_mastery`), the meter fixture and the
+unlock seeding to the entry pools, and the entry test additionally
+asserts the declaration answers `POWER` and `DURATION` in the
+snapshot's bonuses; `build` and all 50 GameTests stay green.
 
 ## Integration foundations
 

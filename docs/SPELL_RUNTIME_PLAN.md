@@ -186,8 +186,9 @@ the spell's spec did not declare is ignored by core.
 
 Mastery layers two and three (D80) extend the same declaration. Every
 grant - the effort handler's output and raw awards alike - routes 40%
-evenly across the spell's element buckets (`SUBCATEGORY`
-`technomagy:<flavor>`, one per element of its stream), 15% to its one
+evenly across the spell's element pools (the mastery entries' own
+`ABILITY` XP, `technomagy:<flavor>_mastery`, one per element of its
+stream; D85), 15% to its one
 role-school bucket (`shaping` / `striking` / `warding` / `veiling` /
 `vitality`), and keeps the 45% remainder on the spell itself. Fourteen
 spells declare `POWER` (Lightning damage, Steam impulse, Mend heal,

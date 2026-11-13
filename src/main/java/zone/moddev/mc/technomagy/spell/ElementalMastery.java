@@ -18,6 +18,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.api.AbilityPresentation;
 import org.bitwisemadness.abilitycore.api.ActivationType;
+import org.bitwisemadness.abilitycore.api.MasteryAxis;
+import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
+import org.bitwisemadness.abilitycore.api.MasterySpec;
 import org.bitwisemadness.abilitycore.api.PresentationField;
 import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
@@ -79,8 +82,9 @@ final class ElementalMastery {
 
     /**
      * Declares the three tabs with their alchemical category icons, element-chip order, their
-     * learned-only live content (D83), the six entry presentation providers, and the snapshot
-     * listener. Runs once at mod construction beside the D79/D80 declarations (D82).
+     * learned-only live content (D83), the six entry presentation providers, each entry's
+     * pane-display mastery spec (D85), and the snapshot listener. Runs once at mod construction
+     * beside the D79/D80 declarations (D82).
      */
     static void declare() {
         MenuTabs.register(SINGLE_TAB, "tab.technomagy.single", tabIcon("single"),
@@ -98,6 +102,14 @@ final class ElementalMastery {
         for (ManaType element : ManaType.FLAVORS) {
             MenuTabs.subCategoryIcon(tagName(element), chipIcon(element), null);
             PresentationProviders.declare(id(element), ElementalMastery::present);
+            // D85's display contract: the entry never casts, so these curves never apply -
+            // they exist so the pane's Mastery bonuses section reads POWER and DURATION at the
+            // element's own level (the ISS school-mastery pattern).
+            if (!MasteryDeclarations.has(id(element))) {
+                MasteryDeclarations.declare(id(element), MasterySpec.gained(0.0)
+                    .withEffect(MasteryAxis.POWER)
+                    .withEffect(MasteryAxis.DURATION));
+            }
         }
         NeoForge.EVENT_BUS.addListener(ElementalMastery::onAnswered);
     }
@@ -284,10 +296,9 @@ final class ElementalMastery {
     }
 
     /**
-     * Client: keeps the element-bucket entries of core's answered mastery snapshot (D82) - the
-     * public hotbar reads expose only {@code ABILITY} entries, so the six meters and the client
-     * unlock verdicts read this store instead. Before the first answer nothing is stored, and both
-     * consumers abstain rather than guess.
+     * Client: keeps the six element entries of core's answered mastery snapshot (D82, D85) - the
+     * meters and the client unlock verdicts read this store, and before the first answer nothing is
+     * stored, so both consumers abstain rather than guess.
      *
      * @param event
      *            the answered response, posted on the client
@@ -295,11 +306,11 @@ final class ElementalMastery {
     static void onAnswered(MasteryQueryAnsweredEvent event) {
         buckets.clear();
         for (MasteryQueryResponse.Entry entry : event.response().entries()) {
-            if (!"SUBCATEGORY".equals(entry.kind())) {
+            if (!"ABILITY".equals(entry.kind())) {
                 continue;
             }
             for (ManaType element : ManaType.FLAVORS) {
-                if (PlayerManaPools.currency(element).toString().equals(entry.id())) {
+                if (id(element).toString().equals(entry.id())) {
                     buckets.put(element, entry);
                 }
             }

@@ -45,6 +45,8 @@ import org.bitwisemadness.abilitycore.api.Affordability;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
 import org.bitwisemadness.abilitycore.api.IconProviders;
 import org.bitwisemadness.abilitycore.api.MasteryAwards;
+import org.bitwisemadness.abilitycore.api.MasteryAxis;
+import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
 import org.bitwisemadness.abilitycore.api.MasteryView;
@@ -984,16 +986,16 @@ public final class SpellGameTests {
         MasteryView lightning = MasteryView.of(caster, PlayerSpell.LIGHTNING.id());
         h.assertTrue(lightning.ownLevel() == 2,
             "225 self XP must reach level 2 on the shipped table, got " + lightning.ownLevel());
-        assertShare(h, lightning, "SUBCATEGORY|technomagy:fire", 0.2, 1);
-        assertShare(h, lightning, "SUBCATEGORY|technomagy:air", 0.2, 1);
+        assertShare(h, lightning, "ABILITY|technomagy:fire_mastery", 0.2, 1);
+        assertShare(h, lightning, "ABILITY|technomagy:air_mastery", 0.2, 1);
         assertShare(h, lightning, "SUBCATEGORY|technomagy:striking", 0.15, 1);
         MasteryAwards.award(caster, PlayerSpell.GROWTH.id(), MasteryTrigger.ACTIVATION, 300.0);
         assertOwnXp(h, caster, PlayerSpell.GROWTH, "Growth self must keep 45% of 300", 135.0);
         MasteryView growth = MasteryView.of(caster, PlayerSpell.GROWTH.id());
         double third = 0.4 / 3;
-        assertShare(h, growth, "SUBCATEGORY|technomagy:water", third, 0);
-        assertShare(h, growth, "SUBCATEGORY|technomagy:light", third, 0);
-        assertShare(h, growth, "SUBCATEGORY|technomagy:earth", third, 0);
+        assertShare(h, growth, "ABILITY|technomagy:water_mastery", third, 0);
+        assertShare(h, growth, "ABILITY|technomagy:light_mastery", third, 0);
+        assertShare(h, growth, "ABILITY|technomagy:earth_mastery", third, 0);
         assertShare(h, growth, "SUBCATEGORY|technomagy:shaping", 0.15, 0);
         h.succeed();
     }
@@ -1138,6 +1140,7 @@ public final class SpellGameTests {
     @GameTest(template = "empty")
     public static void masteryTabsOrganizeByElementCount(GameTestHelper h) {
         var registry = AbilityRegistries.registry();
+        ServerPlayer caster = player(h, PlayerSpell.MEND);
         for (ManaType flavor : ManaType.FLAVORS) {
             var entry = registry.get(ElementalMastery.id(flavor));
             h.assertTrue(entry != null, "Missing elemental mastery entry " + flavor);
@@ -1151,6 +1154,28 @@ public final class SpellGameTests {
                 "An entry carries its one element tag, got " + entry.tags());
             h.assertTrue(entry.description().isPresent(),
                 "An entry must describe its boost for " + flavor);
+            // D85: the pane's display contract - exactly POWER and DURATION, and the
+            // snapshot must answer both bonuses from the entry's own stored pool
+            var spec = MasteryDeclarations.get(ElementalMastery.id(flavor));
+            h.assertTrue(spec.isPresent(),
+                "An entry must declare its pane mastery spec, got " + flavor);
+            h.assertTrue(spec.get().effects().size() == 2
+                && spec.get().effects().containsKey(MasteryAxis.POWER)
+                && spec.get().effects().containsKey(MasteryAxis.DURATION),
+                "An entry must declare exactly POWER and DURATION, got "
+                    + spec.get().effects().keySet());
+            MasteryAwards.awardTo(caster, MasteryTarget.ability(ElementalMastery.id(flavor)),
+                50.0);
+            var row = MasteryQueryResponse.of(caster.getUUID().toString(), caster).entries()
+                .stream()
+                .filter(found -> "ABILITY".equals(found.kind())
+                    && found.id().equals(ElementalMastery.id(flavor).toString()))
+                .findFirst();
+            h.assertTrue(row.isPresent(),
+                "The snapshot must store the entry's own pool, got " + flavor);
+            h.assertTrue(row.get().bonuses().size() == 2,
+                "The snapshot must answer POWER and DURATION bonuses, got "
+                    + row.get().bonuses());
         }
         var mend = registry.get(PlayerSpell.MEND.id());
         h.assertTrue(mend.tags().size() == 2
@@ -1236,8 +1261,8 @@ public final class SpellGameTests {
         var before = PresentationProviders.present(caster, fire);
         h.assertTrue(before.isPresent() && before.get().fields().isEmpty(),
             "Before the answer the entry must present nothing, got " + before);
-        var bucket = new MasteryQueryResponse.Entry("SUBCATEGORY",
-            PlayerManaPools.currency(ManaType.FIRE).toString(), 425.0, 4, 0.5, List.of());
+        var bucket = new MasteryQueryResponse.Entry("ABILITY", fire.toString(), 425.0, 4, 0.5,
+            List.of());
         ElementalMastery.onAnswered(new MasteryQueryAnsweredEvent(
             new MasteryQueryResponse(caster.getUUID().toString(), List.of(bucket))));
         var after = PresentationProviders.present(caster, fire);
@@ -1274,9 +1299,9 @@ public final class SpellGameTests {
             "Trio must list nothing until every element reaches unlockTrioLevel");
         // Water and Light to level 10: Mend appears, Lightning (Fire/Air) stays out
         MasteryAwards.awardTo(player,
-            MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 1025.0);
+            MasteryTarget.ability(ElementalMastery.id(ManaType.WATER)), 1025.0);
         MasteryAwards.awardTo(player,
-            MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 1025.0);
+            MasteryTarget.ability(ElementalMastery.id(ManaType.LIGHT)), 1025.0);
         var duoIds = duo.entries(player);
         h.assertTrue(duoIds.contains(PlayerSpell.MEND.id()),
             "Mend must list once Water and Light qualify");
@@ -1311,9 +1336,9 @@ public final class SpellGameTests {
                 "Below unlockTrioLevel Trio must be locked");
             // Water and Light to level 10 (1025 XP crosses the 983.05 threshold): Mend's pair
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 1025.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.WATER)), 1025.0);
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 1025.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.LIGHT)), 1025.0);
             h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.MEND.id()).orElse(false),
                 "Mend must unlock once Water and Light reach level 10");
             h.assertTrue(!SpellUnlocks.learnedFor(player, PlayerSpell.LIGHTNING.id()).orElse(true),
@@ -1321,15 +1346,15 @@ public final class SpellGameTests {
             // Air, Light and Earth to level 25 (8500 XP crosses the 7999.15 threshold),
             // Fire to level 10 so Lightning's pair qualifies too
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.FIRE)), 1025.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.FIRE)), 1025.0);
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.AIR)), 8500.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.AIR)), 8500.0);
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.LIGHT)), 8500.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.LIGHT)), 8500.0);
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.EARTH)), 8500.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.EARTH)), 8500.0);
             MasteryAwards.awardTo(player,
-                MasteryTarget.subcategory(PlayerManaPools.currency(ManaType.WATER)), 7475.0);
+                MasteryTarget.ability(ElementalMastery.id(ManaType.WATER)), 7475.0);
             h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.GROWTH.id()).orElse(false),
                 "Growth must unlock once Water, Light and Earth reach level 25");
             h.assertTrue(SpellUnlocks.learnedFor(player, PlayerSpell.LIGHTNING.id()).orElse(false),

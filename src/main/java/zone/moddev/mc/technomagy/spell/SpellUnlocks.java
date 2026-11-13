@@ -95,8 +95,9 @@ final class SpellUnlocks {
     }
 
     /**
-     * One element bucket's level for one player: the stored XP through the shipped curve on the
-     * server, D82's answered snapshot on the client (empty before the answer).
+     * One element's mastery level for one player (D85: the entry's own pool is the bucket): the
+     * stored XP through the shipped curve on the server, D82's answered snapshot on the client
+     * (empty before the answer).
      *
      * @param player
      *            the asking player (null = test context: unknown)
@@ -107,7 +108,7 @@ final class SpellUnlocks {
     private static Optional<Integer> level(Player player, ManaType element) {
         if (player instanceof ServerPlayer server) {
             double xp = MasteryAttachments.data(server)
-                .xp(MasteryTarget.subcategory(PlayerManaPools.currency(element)).key());
+                .xp(MasteryTarget.ability(ElementalMastery.id(element)).key());
             return Optional.of(MasteryLevels.level(xp));
         }
         return ElementalMastery.clientLevel(element);
