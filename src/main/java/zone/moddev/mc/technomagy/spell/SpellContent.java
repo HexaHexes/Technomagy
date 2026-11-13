@@ -141,6 +141,8 @@ public final class SpellContent {
      * default stream: the declared amounts are display defaults, and the
      * {@code technomagy:spell_cost} resolver prices each cast from the server config, which is not
      * loaded at registration time (D78). Declared costs are mandatory for EXTERNAL charging (D78).
+     * The data map carries D84's description key - the same convention as the mastery entries,
+     * whose value is the translation key hotbar's menu pane resolves.
      *
      * @param spell
      *            the spell to describe
@@ -165,7 +167,7 @@ public final class SpellContent {
             "all",
             SpellResources.COST_RESOLVER,
             ElementalMastery.elementTags(spell),
-            Map.of());
+            Map.of("description", "spell.technomagy." + spell.id().getPath() + ".description"));
     }
 
     /**

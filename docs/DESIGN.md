@@ -1253,6 +1253,79 @@ lists nothing unlearned, Mend alone once Water and Light reach level
 is client render: honest scope is build green plus the user's in-game
 check, stated as such.
 
+**D84.** Descriptions for the sixteen spells and the six elements -
+flavour text carried as Ability Core's `description` data key, the
+convention the mastery entries already use: the value is the
+translation key `<display name key>.description`, which hotbar's menu
+pane wraps and scrolls. `SpellContent.definition` declares the key for
+every spell; the texts live in `en_us.json`.
+
+Style, recorded so later edits hold the line:
+
+- **Flourishing**: ornate, lyrical, Latinate prose - a grimoire's
+  voice, not a manual's.
+- **Drawn from the composing elements**: every spell's description
+  weaves the threads of its own elements' descriptions; the six texts
+  below are the palette, and each spell braids them under its
+  elements' names or their alchemical aliases (salt for Earth, sulfur
+  for Fire).
+- **Western alchemy and Latin**: the tria prima, the stages of the
+  Great Work, and Latin phrases where they sharpen the image.
+- **The Forgotten Realms**: recognisable echoes - the Weave and the
+  Shadow Weave, Netheril's glyph-wards, Karsus, Gond, the Morninglord
+  - without quoting rule text.
+- **Clarke's Third Law**: magic framed as sufficiently advanced
+  technology, varied spell by spell rather than repeated as a slogan,
+  in keeping with the premise that magic follows studyable rules.
+- **Grounded in real science**: thermodynamics, optics, rheology,
+  spectroscopy, metallurgy, photosynthesis - the classical elements
+  keep their classical reading and modern physics supplies the
+  mechanism.
+
+**The six element descriptions** - the palette, mirrored verbatim in
+`en_us.json` under `element.technomagy.<flavor>.description`:
+
+- **Fire (Ignis)** - Ignis, the hot and dry - thermodynamics' own
+  arrow, matter loosened until it glows: every body radiates as its
+  heat allows, a lamp and a star differing by degree rather than kind,
+  and plasma is merely matter that has forgotten how to be solid. The
+  alchemists called its soul sulfur, first of the tria prima; the
+  Weave answers their furnace with wrath.
+- **Earth (Terra)** - Terra, the cold and dry - the salt of the tria
+  prima, body made stable: crystals grow by slow arithmetic, strata
+  remember every age in stone, and pressure that bends rock will bend
+  a promise. The dwarven deep-roads and the geologist's core sample
+  read the same record; the alchemists named it the Body.
+- **Air (Aer)** - Aer, the hot and wet - the restless one:
+  Bernoulli's law written into every gust, sound itself nothing but
+  pressure confiding in the ear, and the ideal gas indifferent to
+  which vessel holds it. Mercury, the tria prima's mobile soul, rides
+  it; in the Realms the same restlessness answers to wind-walking.
+- **Water (Aqua)** - Aqua, the cold and wet - the universal solvent,
+  the alchemists' aqua permanens that dissolves to purify: hydrogen
+  bonds breaking and reforming faster than counting, mixing always
+  toward the entropy it prefers. It is the Body's loosener and the
+  wine of life; the Weave's rivers run on the same chemistry.
+- **Light (Lux)** - Lux, fiat lux: photons in the inverse-square
+  discipline, refraction bending each colour by its own impatience,
+  and every element announcing itself in spectral lines no tongue can
+  forge. The alchemists chased it as gold, the rubedo at the end of
+  the Great Work; Mystra's Weave is said to shine with this
+  arithmetic.
+- **Dark (Tenebrae)** - Tenebrae, not an absence but a claim: every
+  photon refused, shadow cast wherever light is denied, and the
+  oldest equation in the room - heat, given time, spends itself. Shar
+  keeps the Shadow Weave for what the light forgets; the alchemists
+  called it the nigredo, the blackening that must precede all
+  transformation.
+
+**Verification.** All twenty-two translation keys exist in
+`en_us.json` (sixteen `spell.technomagy.<id>.description`, six
+`element.technomagy.<flavor>.description`), `definition()` declares
+the data key beside the costs, and `build` and all 50 GameTests stay
+green. The pane itself is client render: honest scope is build green
+plus the user's in-game check, stated as such.
+
 ## Integration foundations
 
 **D40.** Sky's Ley Lines is a **required dependency on both client and server**
