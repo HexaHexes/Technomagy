@@ -170,9 +170,20 @@ public enum PlayerSpell {
         return ResourceLocation.fromNamespaceAndPath("technomagy", name().toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * This spell's translation-key stem: the display-name key every spell string derives from, so
+     * the name and its {@code .description} suffix can never drift apart (D84's
+     * {@code <display name key>.description} convention).
+     *
+     * @return the key without any suffix, e.g. {@code spell.technomagy.mend}
+     */
+    public String nameKey() {
+        return "spell.technomagy." + id().getPath();
+    }
+
     /** Returns this spell's player-facing localized title. */
     public Component title() {
-        return Component.translatable("spell.technomagy." + id().getPath());
+        return Component.translatable(nameKey());
     }
 
     /**
