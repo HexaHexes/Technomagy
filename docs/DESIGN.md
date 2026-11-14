@@ -943,7 +943,8 @@ the self remainder (**45%**) stays on the spell's own target.
   element's bucket: the same number routes in and aggregates back out,
   so the 40% splits evenly across them - a pair spell routes 20% each,
   Growth 13.3% each - and every spell that uses an element empowers
-  every spell of that element through core's `aggregateLevel`.
+  every spell of that element through core's `aggregateLevel` at the
+  element's **full** level (full contributions, below).
 - **Disciplines**: exactly one fixed role school per spell, a
   `SUBCATEGORY` bucket id `technomagy:<school>`:
 
@@ -959,9 +960,14 @@ the self remainder (**45%**) stays on the spell's own target.
   and to be tuned; all sixteen spells belong to exactly one school, so
   the 15% never splits.
 
-The shares sum to 0.55, within core's `sum <= 1` rule, and core's
-`MasteryView` folds `ownLevel + sum(share x targetLevel)` back into the
-effect read. Shares are declared in code; no overlay files ship in this
+The shares sum to 0.55, within core's `sum <= 1` rule. Shares route
+XP only; the effect read folds `ownLevel + sum(full targetLevel)` -
+every share target contributes its whole level, never a share of it.
+This is the owner's full-bonuses ruling (a spell receives the full
+mastery bonuses of its elements and its discipline): core shipped it
+as `HexaHexes/ability-core#156`, first released in core alpha.14, and
+it applies to every mod reading core's effect curves, not only
+Technomagy. Shares are declared in code; no overlay files ship in this
 decision.
 
 **Effect axes (layer two).** Two of core's four axes participate, read
@@ -971,8 +977,9 @@ default curve applies to the aggregate level:
 `1 + max x (1 - e^(-rate x aggregateLevel))` - with core's defaults
 (max 0.5, rate 0.01) the bonus approaches +50% and never reaches it,
 rising max x rate = +0.5% per aggregate level at zero; at the aggregate
-6.2 the tests pin, the multiplier is x1.030055 (Mend heals 14.1202,
-the Constraint slowdown lasts 206 ticks).
+16 the tests pin (own level 4 plus Water, Light and Vitality each at
+their full level 4), the multiplier is x1.073928 (Mend heals 14.2957,
+the Constraint slowdown lasts 215 ticks).
 
 | Axis | Spells | Scaled quantity (read site) |
 | --- | --- | --- |
@@ -1350,14 +1357,19 @@ masteries: the six Single entries answer hotbar's pane section
   never casts, so these curves never apply to anything: they exist so
   core's snapshot answers the pane with each axis's curve read at the
   element's own level, live as that level grows (ISS's phrase: the
-  curves "are the pane's display contract"). Discipline and school
-  subcategories gain no such declaration.
+  curves "are the pane's display contract"). Since core alpha.14's
+  full contributions (D80), that full level **is** what every spell
+  drawing on the element receives, so the pane states its elements'
+  gift exactly rather than overstating a share-weighted slice.
+  Discipline and school subcategories gain no such declaration.
 - **Storage**: a spell's element share now targets the entry's
   `ABILITY` pool (`technomagy:<flavor>_mastery`) instead of the
-  `SUBCATEGORY technomagy:<flavor>` bucket. Core's share math is one
-  number both ways - the routing fraction is also the aggregate weight
-  - so the entry's own XP **is** the element's bucket: routing, D82's
-  meters, D83's unlock reads and the pane all read one number. The
+  `SUBCATEGORY technomagy:<flavor>` bucket. Routing and aggregation
+  are decoupled since core alpha.14 (full contributions, D80): the
+  share still routes its fraction of every grant in, while the effect
+  aggregate sums the entry's full level out - so the entry's own XP
+  **is** the element's bucket (routing, D82's meters, D83's unlock
+  reads) and the pane's number is each spell's per-element input. The
   discipline shares stay `SUBCATEGORY technomagy:<school>`, and the
   D70 casting pools are a separate system that does not move.
 - **Existing worlds**: element XP stored under the old `SUBCATEGORY`

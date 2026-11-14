@@ -366,9 +366,10 @@ final class SpellMastery {
     /**
      * The element mastery targets one spell shares to (D80, D85): one {@code ABILITY} target per
      * element of its construction - the element's own mastery entry, whose stored XP pool is the
-     * element's bucket. Core's share math is one number both ways (the routing fraction is also the
-     * aggregate weight), so this single target both receives the routed element share and folds the
-     * element's level back into every containing spell's aggregate.
+     * element's bucket. Routing and aggregation are decoupled since core alpha.14 (full
+     * contributions): the share still routes its fraction of every grant in, while the effect
+     * aggregate sums this target's FULL level back out - so this single target both receives the
+     * routed element share and empowers every containing spell with the element's whole level.
      *
      * @param spell
      *            the spell whose construction supplies the elements

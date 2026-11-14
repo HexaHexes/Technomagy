@@ -29,6 +29,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -55,6 +56,7 @@ import org.bitwisemadness.abilitycore.api.PresentationProviders;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
 import org.bitwisemadness.abilitycore.api.ResourceProviders;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
+import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
 import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
@@ -1001,7 +1003,9 @@ public final class SpellGameTests {
 
     /**
      * Mend's heal scales with the POWER multiplier over the aggregate level on core's default curve
-     * - asymptotic toward +50%, x1.030055 at the pinned aggregate 6.2 (D80).
+     * - asymptotic toward +50%, x1.073928 at the pinned aggregate 16: own level 4 plus every share
+     * target (Water, Light, Vitality) at its full level 4 (D80, full contributions since core
+     * alpha.14).
      */
     @GameTest(template = "empty")
     public static void masteryPowerScalesHeal(GameTestHelper h) {
@@ -1009,7 +1013,8 @@ public final class SpellGameTests {
         capMastery(caster, PlayerSpell.MEND);
         caster.setHealth(10);
         cast(h, caster, PlayerSpell.MEND);
-        double aggregate = 4 + 0.2 * 4 + 0.2 * 4 + 0.15 * 4;
+        // Full contributions: own level + each share target's FULL level (shares route XP only)
+        double aggregate = 4 + 4 + 4 + 4;
         double expected = 10
             + SpellConfig.HEAL.get() * (1 + 0.5 * (1 - Math.exp(-0.01 * aggregate)));
         h.assertTrue(Math.abs(caster.getHealth() - expected) < 1.0e-3,
@@ -1030,7 +1035,8 @@ public final class SpellGameTests {
         cast(h, caster, PlayerSpell.CONSTRAINT);
         var effect = husk.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
         h.assertTrue(effect != null, "Constraint did not slow the target");
-        double aggregate = 4 + 0.2 * 4 + 0.2 * 4 + 0.15 * 4;
+        // Full contributions: own level + each share target's FULL level (shares route XP only)
+        double aggregate = 4 + 4 + 4 + 4;
         int expected = (int) Math.round(
             SpellConfig.DURATION.get()
                 * (1 + 0.5 * (1 - Math.exp(-0.01 * aggregate))));
@@ -1281,6 +1287,33 @@ public final class SpellGameTests {
             "The meter must name level 4, got '" + meter.value() + "'");
         h.assertTrue(fire.equals(lookedUp.get()),
             "The seam must look up the entry's own id untransformed, got " + lookedUp.get());
+        // Answered path end-to-end (review of D81): seed the exchange exactly as a client sees
+        // it - record the pending echo, post core's wire answer - and drive present() itself.
+        // The seeded entry names the entry's own id, so present() handing a transformed id to
+        // the store would answer level 0 and fail the meter assertions here.
+        try {
+            CoreMasteryCompat.markRequested(caster.getUUID(), 0L);
+            NeoForge.EVENT_BUS.post(new MasteryQueryAnsweredEvent(new MasteryQueryResponse(
+                caster.getUUID().toString(),
+                List.of(new MasteryQueryResponse.Entry("ABILITY", fire.toString(),
+                    425.0, 4, 0.5, List.of())))));
+            h.assertTrue(CoreMasteryCompat.answered(),
+                "The seeded wire answer must open the store's gate");
+            var live = PresentationProviders.present(caster, fire);
+            h.assertTrue(live.isPresent() && live.get().fields().size() == 1,
+                "The answered entry must present exactly one meter through present, got " + live);
+            var liveMeter = live.get().fields().get(0);
+            h.assertTrue(Math.abs(liveMeter.progress() - 0.5f) < 1.0e-6,
+                "The meter must carry the seeded fill 0.5, got " + liveMeter.progress());
+            h.assertTrue(liveMeter.value().endsWith("4"),
+                "The meter must name the seeded level 4, got '" + liveMeter.value() + "'");
+        } finally {
+            // The exchange is shared static state: clear it before the next test reads the
+            // unanswered gate (hotbar alpha.21's logout seam), whatever the asserts above did.
+            CoreMasteryCompat.reset();
+        }
+        h.assertTrue(!CoreMasteryCompat.answered(),
+            "The seeded exchange must be cleared for the rest of the headless suite");
         h.succeed();
     }
 
@@ -1406,7 +1439,8 @@ public final class SpellGameTests {
 
     /**
      * Puts a spell and every one of its share targets at the shipped cap (425 XP each), so the
-     * aggregate level is a known 6.2 for the effect-math assertions (D80).
+     * aggregate level is a known 16 for the effect-math assertions: own level 4 plus each share
+     * target's full level 4 (D80, full contributions since core alpha.14).
      */
     private static void capMastery(ServerPlayer caster, PlayerSpell spell) {
         MasteryAwards.awardTo(caster, MasteryTarget.ability(spell.id()), 425.0);
